@@ -1,0 +1,60 @@
+{
+  "apps": [
+    {
+      "name": "KinoTrend",
+      "package": "ru.tiardev.kinotrend",
+      "versionCode": 238,
+      "versionName": "2.3.8",
+      "url": ""
+    },
+    {
+      "name": "SerialTrend",
+      "package": "ru.twicker.serialtrend",
+      "versionCode": 5,
+      "versionName": "0.0.5aST",
+      "url": ""
+    },
+    {
+      "name": "NUM",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    },
+    {
+      "name": "ZONA",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    },
+    {
+      "name": "LIFT",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    },
+    {
+      "name": "PRISMA",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    },
+    {
+      "name": "VOKINO",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    },
+    {
+      "name": "Lite HD TV",
+      "package": "",
+      "versionCode": 0,
+      "versionName": "",
+      "url": ""
+    }
+  ]
+}

@@ -16,44 +16,44 @@
     },
     {
       "name": "NUM",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "ru.yourok.num",
+      "versionCode": 150,
+      "versionName": "1.0.150",
       "apkUrl": ""
     },
     {
       "name": "ZONA",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "mobi.zona",
+      "versionCode": 1072,
+      "versionName": "3.0.72",
       "apkUrl": ""
     },
     {
       "name": "LIFT",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "io.lift.app",
+      "versionCode": 36,
+      "versionName": "0.2.45",
       "apkUrl": ""
     },
     {
       "name": "PRISMA",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "top.rootu.prisma",
+      "versionCode": 104,
+      "versionName": "1.3.4-RuStore",
       "apkUrl": ""
     },
     {
       "name": "VOKINO",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "ru.vokino.web",
+      "versionCode": 21,
+      "versionName": "1.1.1-rustore",
       "apkUrl": ""
     },
     {
       "name": "Lite HD TV",
-      "packageName": "",
-      "versionCode": 0,
-      "versionName": "",
+      "packageName": "limehd.ru.lite",
+      "versionCode": 999,
+      "versionName": "7.0.0",
       "apkUrl": ""
     }
   ]

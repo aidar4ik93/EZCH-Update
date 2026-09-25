@@ -7,13 +7,12 @@
       "versionName": "2.3.8",
       "url": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/KinoTrend.apk"
     },
-    {
-      "name": "SerialTrend",
-      "package": "ru.twicker.serialtrend",
-      "versionCode": 5,
-      "versionName": "0.0.5aST",
-      "url": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/apks/SerialTrend.apk"
-    },
+   {
+  "name": "SerialTrend",
+  "packageName": "ru.twicker.serialtrend",
+  "versionName": "0.0.5a",
+  "apkUrl": "ССЫЛКА_НА_APK"
+}
     {
       "name": "NUM",
       "package": "",

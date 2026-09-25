@@ -1,60 +1,132 @@
 {
-"apps": [
-{
-"name": "KinoTrend",
-"packageName": "ru.tiardev.kinotrend",
-"versionCode": 238,
-"versionName": "2.3.8",
-"apkUrl": "https://disk.yandex.ru/d/Hp6XQGhiTl7Fcg"
-},
-{
-"name": "SerialTrend",
-"packageName": "ru.twicker.serialtrend",
-"versionCode": 1,
-"versionName": "0.0.5a",
-"apkUrl": ""
-},
-{
-"name": "NUM",
-"packageName": "ru.yourok.num",
-"versionCode": 150,
-"versionName": "1.0.150",
-"apkUrl": ""
-},
-{
-"name": "ZONA",
-"packageName": "mobi.zona",
-"versionCode": 1072,
-"versionName": "3.0.72",
-"apkUrl": ""
-},
-{
-"name": "LIFT",
-"packageName": "io.lift.app",
-"versionCode": 36,
-"versionName": "0.2.45",
-"apkUrl": ""
-},
-{
-"name": "PRISMA",
-"packageName": "top.rootu.prisma",
-"versionCode": 104,
-"versionName": "1.3.4-RuStore",
-"apkUrl": ""
-},
-{
-"name": "VOKINO",
-"packageName": "ru.vokino.web",
-"versionCode": 21,
-"versionName": "1.1.1-rustore",
-"apkUrl": ""
-},
-{
-"name": "Лайт HD TV",
-"packageName": "limehd.ru.lite",
-"versionCode": 999,
-"versionName": "7.0.0",
-"apkUrl": ""
-}
-]
+  "apps": [
+    {
+      "name": "Lift",
+      "packageName": "io.lift.app",
+      "versionCode": 36,
+      "versionName": "0.2.45",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Lift 0.2.45.apk"
+    },
+    {
+      "name": "NUM",
+      "packageName": "ru.yourok.num",
+      "versionCode": 150,
+      "versionName": "1.0.150",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/NUM 1.0.150.apk"
+    },
+    {
+      "name": "PRISMA",
+      "packageName": "top.rootu.prisma",
+      "versionCode": 104,
+      "versionName": "1.3.4-RuStore",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/PRISMA 1.3.4-RuStore.apk"
+    },
+    {
+      "name": "Panda Vision",
+      "packageName": "com.play.pandafref",
+      "versionCode": 1001,
+      "versionName": "2.0",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Panda Vision 2.0.apk"
+    },
+    {
+      "name": "Projectivy Launcher",
+      "packageName": "com.spocky.projengmenu",
+      "versionCode": 92,
+      "versionName": "4.70 ST",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Projectivy Launcher 4.70 ST.apk"
+    },
+    {
+      "name": "RUTUBE",
+      "packageName": "ru.rutube.app.tv",
+      "versionCode": 411600002,
+      "versionName": "31.16.0.TV-rustore",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/RUTUBE 31.16.0.TV-rustore.apk"
+    },
+    {
+      "name": "RuStore",
+      "packageName": "ru.vk.store.tv",
+      "versionCode": 1110006,
+      "versionName": "1.110.0.6",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/RuStore 1.110.0.6.apk"
+    },
+    {
+      "name": "SerialTrend",
+      "packageName": "ru.twicker.serialtrend",
+      "versionCode": 1,
+      "versionName": "0.0.5a",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/SerialTrend 0.0.5a.apk"
+    },
+    {
+      "name": "Task Killer TV",
+      "packageName": "jp.snowlife01.android.appkiller2",
+      "versionCode": 43,
+      "versionName": "4.0.2",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Task Killer TV 4.0.2.apk"
+    },
+    {
+      "name": "TorrServe MatriX",
+      "packageName": "ru.yourok.torrserve",
+      "versionCode": 143,
+      "versionName": "MatriX.143.Client",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/TorrServe MatriX MatriX.143.Client.apk"
+    },
+    {
+      "name": "VK Видео",
+      "packageName": "com.vk.tv",
+      "versionCode": 67946,
+      "versionName": "2.116",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/VK Видео 2.116.apk"
+    },
+    {
+      "name": "VoKino",
+      "packageName": "ru.vokino.web",
+      "versionCode": 21,
+      "versionName": "1.1.1-rustore",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/VoKino 1.1.1-rustore.apk"
+    },
+    {
+      "name": "Zona",
+      "packageName": "mobi.zona",
+      "versionCode": 1072,
+      "versionName": "3.0.72",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Zona 3.0.72.apk"
+    },
+    {
+      "name": "Лайт HD TV",
+      "packageName": "limehd.ru.lite",
+      "versionCode": 999,
+      "versionName": "7.0.0",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Лайт HD TV 7.0.0.apk"
+    },
+    {
+      "name": "Медиаплеер Виму",
+      "packageName": "net.gtvbox.vimuhd",
+      "versionCode": 1077,
+      "versionName": "10.77",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Медиаплеер Виму 10.77.apk"
+    },
+    {
+      "name": "Файловый менеджер +",
+      "packageName": "com.alphainventor.filemanager",
+      "versionCode": 2103078,
+      "versionName": "3.7.8",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Файловый менеджер + 3.7.8.apk"
+    }
+  ]
 }

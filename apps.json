@@ -1,60 +1,60 @@
 {
-  "apps": [
-    {
-      "name": "KinoTrend",
-      "packageName": "ru.tiardev.kinotrend",
-      "versionCode": 238,
-      "versionName": "2.3.8",
-      "apkUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/KinoTrend.apk"
-    },
-    {
-      "name": "SerialTrend",
-      "packageName": "ru.twicker.serialtrend",
-      "versionCode": 1,
-      "versionName": "0.0.5a",
-      "apkUrl": ""
-    },
-    {
-      "name": "NUM",
-      "packageName": "ru.yourok.num",
-      "versionCode": 150,
-      "versionName": "1.0.150",
-      "apkUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/NUM.apk"
-    },
-    {
-      "name": "ZONA",
-      "packageName": "mobi.zona",
-      "versionCode": 1072,
-      "versionName": "3.0.72",
-      "apkUrl": ""
-    },
-    {
-      "name": "LIFT",
-      "packageName": "io.lift.app",
-      "versionCode": 36,
-      "versionName": "0.2.45",
-      "apkUrl": ""
-    },
-    {
-      "name": "PRISMA",
-      "packageName": "top.rootu.prisma",
-      "versionCode": 104,
-      "versionName": "1.3.4-RuStore",
-      "apkUrl": ""
-    },
-    {
-      "name": "VOKINO",
-      "packageName": "ru.vokino.web",
-      "versionCode": 21,
-      "versionName": "1.1.1-rustore",
-      "apkUrl": ""
-    },
-    {
-      "name": "Lite HD TV",
-      "packageName": "limehd.ru.lite",
-      "versionCode": 999,
-      "versionName": "7.0.0",
-      "apkUrl": ""
-    }
-  ]
+"apps": [
+{
+"name": "KinoTrend",
+"packageName": "ru.tiardev.kinotrend",
+"versionCode": 238,
+"versionName": "2.3.8",
+"apkUrl": "https://disk.yandex.ru/d/Hp6XQGhiTl7Fcg"
+},
+{
+"name": "SerialTrend",
+"packageName": "ru.twicker.serialtrend",
+"versionCode": 1,
+"versionName": "0.0.5a",
+"apkUrl": ""
+},
+{
+"name": "NUM",
+"packageName": "ru.yourok.num",
+"versionCode": 150,
+"versionName": "1.0.150",
+"apkUrl": ""
+},
+{
+"name": "ZONA",
+"packageName": "mobi.zona",
+"versionCode": 1072,
+"versionName": "3.0.72",
+"apkUrl": ""
+},
+{
+"name": "LIFT",
+"packageName": "io.lift.app",
+"versionCode": 36,
+"versionName": "0.2.45",
+"apkUrl": "https://disk.yandex.ru/d/TXUEBC-o0wRssw"
+},
+{
+"name": "PRISMA",
+"packageName": "top.rootu.prisma",
+"versionCode": 104,
+"versionName": "1.3.4-RuStore",
+"apkUrl": ""
+},
+{
+"name": "VOKINO",
+"packageName": "ru.vokino.web",
+"versionCode": 21,
+"versionName": "1.1.1-rustore",
+"apkUrl": ""
+},
+{
+"name": "Лайт HD TV",
+"packageName": "limehd.ru.lite",
+"versionCode": 999,
+"versionName": "7.0.0",
+"apkUrl": ""
+}
+]
 }

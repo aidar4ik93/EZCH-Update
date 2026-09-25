@@ -1,3 +1,4 @@
+```json
 {
   "apps": [
     {
@@ -19,7 +20,7 @@
       "packageName": "ru.yourok.num",
       "versionCode": 150,
       "versionName": "1.0.150",
-      "apkUrl": ""
+      "apkUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/NUM.apk"
     },
     {
       "name": "ZONA",
@@ -58,3 +59,8 @@
     }
   ]
 }
+```
+
+Теперь **сохрани этот `apps.json` и загрузи его на GitHub с заменой старого файла**.
+
+После загрузки напиши **«готово»**, и проверим, что приложение EZCH Update видит новую ссылку на NUM.

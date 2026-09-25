@@ -2,58 +2,59 @@
   "apps": [
     {
       "name": "KinoTrend",
-      "package": "ru.tiardev.kinotrend",
+      "packageName": "ru.tiardev.kinotrend",
       "versionCode": 238,
       "versionName": "2.3.8",
-      "url": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/KinoTrend.apk"
+      "apkUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/KinoTrend.apk"
     },
-   {
-  "name": "SerialTrend",
-  "packageName": "ru.twicker.serialtrend",
-  "versionName": "0.0.5a",
-  "apkUrl": "ССЫЛКА_НА_APK"
-}
+    {
+      "name": "SerialTrend",
+      "packageName": "ru.twicker.serialtrend",
+      "versionCode": 1,
+      "versionName": "0.0.5a",
+      "apkUrl": ""
+    },
     {
       "name": "NUM",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     },
     {
       "name": "ZONA",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     },
     {
       "name": "LIFT",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     },
     {
       "name": "PRISMA",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     },
     {
       "name": "VOKINO",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     },
     {
       "name": "Lite HD TV",
-      "package": "",
+      "packageName": "",
       "versionCode": 0,
       "versionName": "",
-      "url": ""
+      "apkUrl": ""
     }
   ]
 }

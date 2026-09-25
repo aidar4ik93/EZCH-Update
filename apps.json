@@ -1,19 +1,17 @@
 {
-  "apps": [
-    {
-      "name": "KinoTrend",
-      "package": "ru.tiardev.kinotrend",
-      "versionCode": 238,
-      "versionName": "2.3.8",
-      "url": ""
-    },
-    {
-      "name": "SerialTrend",
-      "package": "ru.twicker.serialtrend",
-      "versionCode": 5,
-      "versionName": "0.0.5aST",
-      "url": ""
-    },
+  "name": "KinoTrend",
+  "package": "ru.tiardev.kinotrend",
+  "versionCode": 238,
+  "versionName": "2.3.8",
+  "url": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/apks/KinoTrend.apk"
+},
+{
+  "name": "SerialTrend",
+  "package": "ru.twicker.serialtrend",
+  "versionCode": 5,
+  "versionName": "0.0.5aST",
+  "url": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/apks/SerialTrend.apk"
+}
     {
       "name": "NUM",
       "package": "",

@@ -1,11 +1,15 @@
 package com.example.ezchupdate.install
 
 import android.content.Context
+import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageInstaller
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -159,11 +163,56 @@ class InstallEventsTest {
         assertTrue(InstallEvents.activeSessions(noSpaceContext).isEmpty())
     }
 
-    private fun createOwnedSession(): InstallSubmission {
+    @Test fun changedDeviceBootAbandonsASealedSessionInsteadOfWaitingForLostCallback() {
+        InstallEvents.observe(context)
+        val submission = createOwnedSession("org.example.ezch.fixture")
+        InstallEvents.started(context, submission, 42)
+        val fixture = File(context.cacheDir, "signed-fixture.apk")
+        InstrumentationRegistry.getInstrumentation().context.assets.open("signed-fixture.apk").use { input ->
+            fixture.outputStream().use { input.copyTo(it) }
+        }
+        val installer = context.packageManager.packageInstaller
+        installer.openSession(submission.sessionId).use { session ->
+            fixture.inputStream().use { input ->
+                session.openWrite("base.apk", 0, fixture.length()).use { output ->
+                    input.copyTo(output)
+                    session.fsync(output)
+                }
+            }
+            // Explicit non-existent test receiver avoids launching UI or modifying app preferences.
+            val instrumentationPackage = InstrumentationRegistry.getInstrumentation().context.packageName
+            val callback = Intent().setComponent(ComponentName(instrumentationPackage, "$instrumentationPackage.IgnoredTestReceiver"))
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+            val sender = PendingIntent.getBroadcast(context, submission.sessionId, callback, flags)
+            InstallEvents.markCommitted(context, submission.sessionId)
+            session.commit(sender.intentSender)
+        }
+        assertTrue("Test requires a real sealed Android install session", installer.getSessionInfo(submission.sessionId)!!.isSealed)
+        val preferences = context.getSharedPreferences("installation_journal", Context.MODE_PRIVATE)
+        val journal = JSONObject(preferences.getString("journal", null)!!)
+        val stored = journal.getJSONArray("sessions").getJSONObject(0)
+        val actualBoot = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
+        assertTrue("Test emulator must expose BOOT_COUNT", actualBoot >= 0)
+        assertEquals(actualBoot, stored.getInt("bootCount"))
+        stored.put("bootCount", actualBoot + 1) // A deliberately different persisted boot, without rebooting the emulator.
+        preferences.edit().putString("journal", journal.toString()).commit()
+        forgetProcessMemory()
+        val result = InstallEvents.observe(context).value.single()
+        assertEquals(submission.sessionId, result.sessionId)
+        assertEquals(PackageInstaller.STATUS_FAILURE_ABORTED, result.status)
+        assertTrue(result.message!!.contains("перезапущено"))
+        assertTrue(InstallEvents.activeSessions(context).isEmpty())
+        assertNull(installer.getSessionInfo(submission.sessionId))
+    }
+
+    private fun createOwnedSession(ownedPackage: String = packageName): InstallSubmission {
         val id = context.packageManager.packageInstaller.createSession(
-            PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(packageName) })
+            PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                setAppPackageName(ownedPackage)
+                if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+            })
         createdSessions.add(id)
-        return InstallSubmission(id, packageName)
+        return InstallSubmission(id, ownedPackage)
     }
 
     @Suppress("UNCHECKED_CAST")

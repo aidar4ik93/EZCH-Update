@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.provider.Settings
 import com.example.ezchupdate.data.versionCodeCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,7 +51,8 @@ object InstallEvents {
 
     internal fun started(context: Context, submission: InstallSubmission, versionCode: Long) = synchronized(lock) {
         initialize(context)
-        active[submission.sessionId] = ActiveSession(submission.sessionId, submission.packageName, versionCode, false, System.currentTimeMillis())
+        active[submission.sessionId] = ActiveSession(submission.sessionId, submission.packageName, versionCode, false,
+            System.currentTimeMillis(), systemBootCount(context))
         persist(context, required = true)
     }
 
@@ -108,7 +110,8 @@ object InstallEvents {
             val sessions = journal.optJSONArray("sessions") ?: JSONArray()
             for (i in 0 until sessions.length()) {
                 val item = sessions.getJSONObject(i)
-                val session = ActiveSession(item.getInt("id"), item.getString("package"), item.getLong("version"), item.optBoolean("committed"), item.optLong("startedAt"))
+                val session = ActiveSession(item.getInt("id"), item.getString("package"), item.getLong("version"),
+                    item.optBoolean("committed"), item.optLong("startedAt"), item.optInt("bootCount", -1))
                 active[session.sessionId] = session
                 item.optString("confirmation").takeIf { it.isNotBlank() }?.let { confirmations[session.sessionId] = it }
             }
@@ -132,6 +135,7 @@ object InstallEvents {
             sessions.put(JSONObject().put("id", session.sessionId).put("package", session.packageName)
                 .put("version", session.versionCode).put("committed", session.committed)
                 .put("startedAt", session.startedAt)
+                .put("bootCount", session.bootCount)
                 .put("confirmation", confirmations[session.sessionId].orEmpty()))
         }
         val results = JSONArray()
@@ -152,6 +156,7 @@ object InstallEvents {
     @Suppress("DEPRECATION")
     private fun recoverSessions(context: Context) {
         val installer = context.packageManager.packageInstaller
+        val currentBoot = systemBootCount(context)
         active.values.toList().forEach { session ->
             val info = installer.getSessionInfo(session.sessionId)
             if (!session.committed || info?.isSealed == false) {
@@ -165,12 +170,26 @@ object InstallEvents {
                 record(context, InstallResult(session.sessionId, session.packageName,
                     if (version >= session.versionCode) PackageInstaller.STATUS_SUCCESS else PackageInstaller.STATUS_FAILURE_ABORTED,
                     if (version >= session.versionCode) null else "Системная установка была прервана. Повторите установку"))
+            } else if (currentBoot >= 0 && session.bootCount >= 0 && currentBoot != session.bootCount) {
+                // Normal install sessions survive a device reboot, but their callback sender does
+                // not. Never wait forever on that old sealed session or silently recommit an APK.
+                runCatching { installer.abandonSession(session.sessionId) }
+                val version = try { context.packageManager.getPackageInfo(session.packageName, 0).versionCodeCompat() }
+                    catch (_: PackageManager.NameNotFoundException) { -1L }
+                record(context, InstallResult(session.sessionId, session.packageName,
+                    if (version >= session.versionCode) PackageInstaller.STATUS_SUCCESS else PackageInstaller.STATUS_FAILURE_ABORTED,
+                    if (version >= session.versionCode) null else "Устройство было перезапущено во время установки. Повторите установку приложения"))
             }
         }
     }
 
     private data class ActiveSession(val sessionId: Int, val packageName: String, val versionCode: Long,
-        val committed: Boolean, val startedAt: Long)
+        val committed: Boolean, val startedAt: Long, val bootCount: Int)
+
+    // Available since API 24; an unavailable OEM setting leaves process-death recovery unchanged.
+    private fun systemBootCount(context: Context): Int = runCatching {
+        Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
+    }.getOrDefault(-1)
     private const val PREFERENCES = "installation_journal"
     private const val KEY = "journal"
 }

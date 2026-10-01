@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Directory = (Join-Path $PSScriptRoot '../app/build/outputs/androidTest-results/connected/debug'),
-    [int]$MinimumTests = 16
+    [int]$MinimumTests = 17
 )
 $ErrorActionPreference = 'Stop'
 $reports = @(Get-ChildItem -LiteralPath $Directory -Filter 'TEST-*.xml' -File)

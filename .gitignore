@@ -4,3 +4,8 @@ local.properties
 /.idea/
 /build/
 /app/build/
+.local/
+artifacts/
+*.jks
+*.keystore
+*.idsig

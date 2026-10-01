@@ -110,7 +110,7 @@ class CatalogScreenTest {
     @Test fun bundledIconsDecodeAndReplaceTheInitialFallback() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val files = context.assets.list("app-icons").orEmpty().filter { it.endsWith(".png") }
-        assertEquals(16, files.size)
+        assertEquals(17, files.size)
         files.forEach { file ->
             context.assets.open("app-icons/$file").use {
                 val bitmap = BitmapFactory.decodeStream(it)

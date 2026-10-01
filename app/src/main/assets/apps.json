@@ -29,6 +29,16 @@
       "sizeBytes": 3944263
     },
     {
+      "name": "Lift",
+      "packageName": "io.lift.app",
+      "versionCode": 36,
+      "versionName": "0.2.45",
+      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
+      "apkPath": "/Lift 0.2.45.apk",
+      "sha256": "b81d3f8539af8d32d5f6b4f5dbf41bedb8d5577b6a8529520852fa548ca717b4",
+      "sizeBytes": 5047299
+    },
+    {
       "name": "NUM",
       "packageName": "ru.yourok.num",
       "versionCode": 150,

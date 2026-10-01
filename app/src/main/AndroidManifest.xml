@@ -24,6 +24,7 @@
         <package android:name="com.example.ezchupdate" />
         <package android:name="io.github.romanvht.byedpi" />
         <package android:name="ru.tiardev.kinotrend" />
+        <package android:name="io.lift.app" />
         <package android:name="ru.yourok.num" />
         <package android:name="com.play.pandafref" />
         <package android:name="top.rootu.prisma" />

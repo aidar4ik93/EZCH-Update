@@ -3,210 +3,105 @@ package com.example.ezchupdate
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import com.example.ezchupdate.install.AppInstaller
+import com.example.ezchupdate.ui.CatalogScreen
+import com.example.ezchupdate.ui.EzchTheme
 
 class MainActivity : ComponentActivity() {
+    private val catalogViewModel: CatalogViewModel by viewModels()
+    private val installer = AppInstaller()
+    private var awaitingInstallPermission = false
+    private var launchedConfirmationSession: Int? = null
+
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (awaitingInstallPermission) {
+            awaitingInstallPermission = false
+            if (catalogViewModel.needsInstallPermission(this)) catalogViewModel.permissionDenied()
+            else catalogViewModel.installSelected(this)
+        }
+        catalogViewModel.refreshInstalled()
+    }
+
+    private val confirmationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        catalogViewModel.refreshInstalled()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        awaitingInstallPermission = savedInstanceState?.getBoolean("awaiting_install_permission") ?: false
+        launchedConfirmationSession = savedInstanceState?.getInt("confirmation_session", -1)?.takeIf { it >= 0 }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        hideSystemBars()
         setContent {
             EzchTheme {
-                val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<CatalogViewModel>()
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val state by catalogViewModel.uiState.collectAsStateWithLifecycle()
+                val lifecycleState by lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+                LaunchedEffect(state.pendingSessionId, lifecycleState) {
+                    val sessionId = state.pendingSessionId
+                    if (lifecycleState.isAtLeast(Lifecycle.State.RESUMED) && sessionId != null && sessionId != launchedConfirmationSession) {
+                        launchConfirmation(sessionId)
+                    }
+                }
                 CatalogScreen(
                     state = state,
-                    onReload = viewModel::reload,
-                    onToggle = viewModel::toggleSelection,
-                    onInstall = {
-                        if (viewModel.needsInstallPermission(this)) {
-                            viewModel.openUnknownSourcesSettings(this)
-                        } else {
-                            viewModel.installSelected(this)
-                        }
-                    }
+                    onReload = catalogViewModel::reload,
+                    onToggle = catalogViewModel::toggleSelection,
+                    onInstall = ::startInstallation,
+                    onCancel = catalogViewModel::cancelInstall,
+                    onConfirm = { state.pendingSessionId?.let(::launchConfirmation) }
                 )
             }
         }
     }
-}
 
-@Composable
-private fun EzchTheme(content: @Composable () -> Unit) {
-    val colors = androidx.compose.material3.darkColorScheme(
-        primary = Color(0xFF80CBC4),
-        secondary = Color(0xFFB39DDB),
-        background = Color(0xFF08111B),
-        surface = Color(0xFF12202D),
-        surfaceVariant = Color(0xFF203342)
-    )
-    MaterialTheme(colorScheme = colors, content = content)
-}
+    override fun onResume() {
+        super.onResume()
+        hideSystemBars()
+        catalogViewModel.refreshInstalled()
+    }
 
-@Composable
-private fun CatalogScreen(
-    state: CatalogUiState,
-    onReload: () -> Unit,
-    onToggle: (String) -> Unit,
-    onInstall: () -> Unit
-) {
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 26.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("EZCH Update", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                    Text("Каталог приложений для Android TV", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onReload, enabled = !state.isLoading && state.installing == null) {
-                        Text("Проверить обновления")
-                    }
-                    Button(
-                        onClick = onInstall,
-                        enabled = state.selectedPackages.isNotEmpty() && state.installing == null
-                    ) {
-                        Text("Установить выбранные (${state.selectedPackages.size})")
-                    }
-                }
-            }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("awaiting_install_permission", awaitingInstallPermission)
+        outState.putInt("confirmation_session", launchedConfirmationSession ?: -1)
+        super.onSaveInstanceState(outState)
+    }
 
-            state.installing?.let { app ->
-                Spacer(Modifier.height(18.dp))
-                Text("Выполняется: ${app.name}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+    private fun startInstallation() {
+        if (catalogViewModel.needsInstallPermission(this)) {
+            try {
+                awaitingInstallPermission = true
+                permissionLauncher.launch(catalogViewModel.unknownSourcesSettingsIntent(this))
+            } catch (_: Exception) {
+                awaitingInstallPermission = false
+                catalogViewModel.permissionDenied()
             }
-            state.message?.let { message ->
-                Spacer(Modifier.height(10.dp))
-                Text(message, color = MaterialTheme.colorScheme.secondary)
-            }
-            Spacer(Modifier.height(22.dp))
+        } else catalogViewModel.installSelected(this)
+    }
 
-            when {
-                state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                state.rows.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Каталог пока пуст")
-                }
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
-                    items(state.rows, key = { it.app.packageName }) { row ->
-                        AppCard(
-                            row = row,
-                            selected = row.app.packageName in state.selectedPackages,
-                            onClick = { onToggle(row.app.packageName) }
-                        )
-                    }
-                }
-            }
+    private fun launchConfirmation(sessionId: Int) {
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        val confirmation = installer.confirmationIntent(this, sessionId) ?: return
+        try {
+            launchedConfirmationSession = sessionId
+            confirmationLauncher.launch(confirmation)
+        } catch (error: Exception) {
+            installer.confirmationLaunchFailed(this, sessionId, error.message)
         }
     }
-}
 
-@Composable
-private fun AppCard(row: AppRow, selected: Boolean, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (focused) 1.06f else 1f,
-        animationSpec = tween(140),
-        label = "cardScale"
-    )
-    val borderColor = when {
-        focused -> MaterialTheme.colorScheme.primary
-        selected -> MaterialTheme.colorScheme.secondary
-        else -> Color.Transparent
-    }
-
-    Card(
-        onClick = onClick,
-        modifier = Modifier
-            .height(190.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .onFocusChanged { focused = it.isFocused }
-            .clip(CardDefaults.shape)
-            .border(3.dp, borderColor, CardDefaults.shape)
-            .focusable(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(18.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = row.app.name,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Column {
-                Text("Версия: ${row.app.versionName}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val status = when {
-                    row.installed == null -> "Не установлено"
-                    row.updateAvailable -> "Доступно обновление"
-                    else -> "Установлено"
-                }
-                Text(
-                    status,
-                    color = if (row.updateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (selected) {
-                    Spacer(Modifier.height(6.dp))
-                    Text("Выбрано", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                }
-            }
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 }

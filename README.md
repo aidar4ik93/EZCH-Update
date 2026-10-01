@@ -50,7 +50,7 @@
 
 ```powershell
 ./scripts/validate-apps-json.ps1
-./scripts/audit-catalog-sources.ps1 -RemoteCheck
+./scripts/audit-catalog-sources.ps1 -CheckRemote
 ```
 
 Проверка локальных APK также сравнивает Android manifest; параметры описаны в `scripts/audit-catalog-sources.ps1`. Изменять каталог можно без пересборки приложения. Новые приложения с launcher доступны обнаружению через Android package queries.

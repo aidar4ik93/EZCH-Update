@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.EzchUpdate" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorAccent">#80CBC4</item>
+        <item name="android:navigationBarColor">#08111B</item>
+        <item name="android:statusBarColor">#08111B</item>
+    </style>
+</resources>

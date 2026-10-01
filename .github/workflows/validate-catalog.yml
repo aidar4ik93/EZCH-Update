@@ -1,0 +1,24 @@
+name: Validate application catalog
+
+on:
+  pull_request:
+    paths:
+      - apps.json
+      - scripts/validate-apps-json.ps1
+      - .github/workflows/validate-catalog.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps.json
+      - scripts/validate-apps-json.ps1
+      - .github/workflows/validate-catalog.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate apps.json
+        shell: pwsh
+        run: ./scripts/validate-apps-json.ps1

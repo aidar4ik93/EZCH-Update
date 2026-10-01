@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <queries>
+        <package android:name="com.example.ezchupdate" />
+        <package android:name="io.github.romanvht.byedpi" />
+        <package android:name="ru.tiardev.kinotrend" />
+        <package android:name="io.lift.app" />
+        <package android:name="ru.yourok.num" />
+        <package android:name="com.play.pandafref" />
+        <package android:name="top.rootu.prisma" />
+        <package android:name="com.spocky.projengmenu" />
+        <package android:name="ru.vk.store.tv" />
+        <package android:name="ru.rutube.app.tv" />
+        <package android:name="ru.twicker.serialtrend" />
+        <package android:name="jp.snowlife01.android.appkiller2" />
+        <package android:name="ru.yourok.torrserve" />
+        <package android:name="com.vk.tv" />
+        <package android:name="ru.vokino.web" />
+        <package android:name="mobi.zona" />
+        <package android:name="limehd.ru.lite" />
+        <package android:name="net.gtvbox.vimuhd" />
+        <package android:name="com.alphainventor.filemanager" />
+    </queries>
+
+    <application
+        android:banner="@drawable/tv_banner"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.EzchUpdate">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".install.InstallResultReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

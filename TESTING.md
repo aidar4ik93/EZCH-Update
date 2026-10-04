@@ -22,7 +22,7 @@
 python -m unittest discover -s scripts -p test_sync_yandex_catalog.py -v
 ```
 
-GitHub Actions выполняет сборку, lint и тесты на Android TV API 28 и Google TV API 33. Результат конкретного запуска проверяется в Actions; эта строка не утверждает, что будущий запуск уже прошёл.
+GitHub Actions успешно выполнил сборку, lint и по 15 + 4 Android-теста на Android TV API 28 и Google TV API 33 для исходников тега `v1.5.1-usb-r19`: [проверка выпуска](https://github.com/aidar4ik93/EZCH-Update/actions/runs/37241740566). Результаты будущих запусков проверяются отдельно в Actions.
 
 ## Ограничения проверки
 

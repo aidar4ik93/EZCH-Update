@@ -4,307 +4,433 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ezchupdate.data.CatalogRepository
-import com.example.ezchupdate.data.CatalogSource
 import com.example.ezchupdate.data.InstalledApp
 import com.example.ezchupdate.data.RemoteApp
 import com.example.ezchupdate.install.AppInstaller
 import com.example.ezchupdate.install.InstallEvents
-import com.example.ezchupdate.install.InstallResult
+import com.example.ezchupdate.install.InstallQueueState
+import com.example.ezchupdate.install.InstallQueueStore
+import com.example.ezchupdate.install.InstallSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.io.InterruptedIOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class AppRow(val app: RemoteApp, val installed: InstalledApp?) {
     val updateAvailable: Boolean get() = installed == null || installed.versionCode < app.versionCode
 }
+
 data class CatalogUiState(
-    val rows: List<AppRow> = emptyList(), val selectedPackages: Set<String> = emptySet(),
-    val isLoading: Boolean = true, val installing: RemoteApp? = null, val message: String? = null,
-    val isError: Boolean = false, val isOffline: Boolean = false, val lastChecked: String? = null,
-    val installProgress: Float? = null, val downloadedBytes: Long = 0, val totalBytes: Long? = null,
-    val queueIndex: Int = 0, val queueTotal: Int = 0, val installStage: String? = null,
-    val pendingSessionId: Int? = null
+    val rows: List<AppRow> = emptyList(),
+    val selectedPackages: Set<String> = emptySet(),
+    val isLoading: Boolean = true,
+    val installing: RemoteApp? = null,
+    val message: String? = null,
+    val downloadBytes: Long = 0,
+    val totalBytes: Long = 0,
+    val completedCount: Int = 0,
+    val totalCount: Int = 0,
+    val failures: List<String> = emptyList(),
+    val permissionRequested: Boolean = false
 )
 
 class CatalogViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
-    private val repository = CatalogRepository(application)
+    private val repository = CatalogRepository(appContext)
     private val installer = AppInstaller()
-    private val preferences = application.getSharedPreferences("installation_queue", Context.MODE_PRIVATE)
-    private var queue: InstallationQueue? = null
-    private var sessionId: Int? = null
-    private var downloadJob: Job? = null
-    private var reloadJob: Job? = null
-    private var refreshJob: Job? = null
-    @Volatile private var generation = 0
-    private var handlingResult = false
-    private var queueStartedAt = 0L
-    private val _uiState = MutableStateFlow(CatalogUiState(selectedPackages = preferences.getStringSet("selection", emptySet()).orEmpty().toSet()))
+    private val queueStore = InstallQueueStore(appContext)
+    private var queue = queueStore.load() ?: InstallQueueState()
+    private var needsRecovery = queue.current != null
+    private var downloadRunning = false
+    private var operationId = 0
+    private var loadRunning = false
+    private val stopDownload = AtomicBoolean(false)
+
+    private val _uiState = MutableStateFlow(
+        CatalogUiState(
+            selectedPackages = (queue.remaining + listOfNotNull(queue.current)).map { it.packageName }.toSet(),
+            installing = queue.current,
+            message = queue.message,
+            completedCount = queue.completedCount,
+            totalCount = queue.totalCount,
+            failures = queue.failures,
+            permissionRequested = queue.waitingForPermission
+        )
+    )
     val uiState: StateFlow<CatalogUiState> = _uiState
 
     init {
-        restoreQueue()
-        viewModelScope.launch {
-            uiState.map { it.selectedPackages }.distinctUntilChanged().collect {
-                preferences.edit().putStringSet("selection", it).commit()
-            }
-        }
-        viewModelScope.launch {
-            InstallEvents.observe(appContext).collect { results ->
-                results.firstOrNull { it.sessionId == sessionId }?.let { handleInstallResult(it) }
-            }
-        }
-        reload()
+        InstallEvents.restore(appContext)
+        viewModelScope.launch { InstallEvents.snapshot.collect(::handleInstallSnapshot) }
+        loadCatalog(clearMessage = queue.totalCount == 0)
     }
 
     fun reload() {
-        if (reloadJob?.isActive == true) return
-        reloadJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            try {
-                val loaded = withContext(Dispatchers.IO) { repository.loadCatalog() }
-                val rows = withContext(Dispatchers.IO) { rowsFor(loaded.apps) }
-                val available = rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()
-                _uiState.update {
-                    it.copy(rows = rows, selectedPackages = it.selectedPackages.intersect(available), isLoading = false,
-                        isOffline = loaded.source != CatalogSource.NETWORK,
-                        lastChecked = if (loaded.source == CatalogSource.NETWORK) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()) else it.lastChecked,
-                        message = loaded.warning ?: it.message, isError = if (loaded.warning != null) true else it.isError)
-                }
-            } catch (cancelled: CancellationException) { throw cancelled
-            } catch (error: Exception) {
-                _uiState.update { it.copy(isLoading = false, message = error.message ?: "Не удалось загрузить каталог", isError = true) }
-            }
-        }
+        if (isBusy()) return
+        loadCatalog(clearMessage = true)
     }
 
-    fun refreshInstalled() {
-        if (refreshJob?.isActive == true) return
-        refreshJob = viewModelScope.launch {
-            val rows = withContext(Dispatchers.IO) { rowsFor(_uiState.value.rows.map { it.app }) }
-            val available = rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()
-            _uiState.update { it.copy(rows = rows, selectedPackages = it.selectedPackages.intersect(available)) }
-            val activeId = sessionId
-            val current = queue?.current
-            if (activeId != null && current != null && !handlingResult) {
-                val retained = InstallEvents.observe(appContext).value.firstOrNull { it.sessionId == activeId }
-                if (retained != null) handleInstallResult(retained)
-                else if (appContext.packageManager.packageInstaller.getSessionInfo(activeId) == null) {
-                    val installed = repository.installedApp(appContext.packageManager, current.packageName)
-                    finishCurrent(if (installed != null && installed.versionCode >= current.versionCode) null
-                        else "Android завершил сеанс без результата. Повторите установку")
+    fun refreshCatalogIfIdle() {
+        if (!isBusy()) loadCatalog(clearMessage = false)
+    }
+
+    private fun loadCatalog(clearMessage: Boolean) {
+        if (loadRunning) return
+        loadRunning = true
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            message = if (clearMessage) null else _uiState.value.message
+        )
+        viewModelScope.launch {
+            try {
+                val rows = withContext(Dispatchers.IO) {
+                    repository.load().map { app -> AppRow(app, installedApp(app.packageName)) }
                 }
+                val selectable = rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()
+                val cachedWarning = "Не удалось обновить каталог. Показана сохранённая версия; для загрузки APK нужен интернет."
+                val message = _uiState.value.message?.lines()?.filterNot { it == cachedWarning }
+                    ?.joinToString("\n")?.takeIf { it.isNotBlank() }
+                _uiState.value = _uiState.value.copy(
+                    rows = rows,
+                    selectedPackages = if (isBusy()) _uiState.value.selectedPackages
+                    else _uiState.value.selectedPackages.intersect(selectable),
+                    isLoading = false,
+                    message = if (repository.offline) listOfNotNull(message, cachedWarning).distinct().joinToString("\n")
+                        else message
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val failure = error.message ?: "Не удалось загрузить каталог"
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = listOfNotNull(_uiState.value.message, failure).distinct().joinToString("\n")
+                )
+            } finally {
+                loadRunning = false
             }
         }
     }
 
     fun toggleSelection(packageName: String) {
-        if (_uiState.value.installing != null) return
+        if (isBusy() || _uiState.value.isLoading) return
         val row = _uiState.value.rows.firstOrNull { it.app.packageName == packageName } ?: return
-        if (!row.updateAvailable) {
-            _uiState.update { it.copy(message = "${row.app.name}: установлена актуальная или более новая версия", isError = false) }
+        if (!row.updateAvailable) return
+        val selected = _uiState.value.selectedPackages.toMutableSet()
+        if (!selected.add(packageName)) selected.remove(packageName)
+        _uiState.value = _uiState.value.copy(selectedPackages = selected)
+    }
+
+    fun hasSelection(): Boolean = _uiState.value.selectedPackages.isNotEmpty()
+
+    fun needsInstallPermission(context: Context): Boolean =
+        hasSelection() && !installer.canRequestPackageInstalls(context)
+
+    fun openUnknownSourcesSettings(context: Context) {
+        if (isBusy() || _uiState.value.isLoading || !prepareQueue(waitingForPermission = true)) return
+        try {
+            context.startActivity(installer.unknownSourcesSettingsIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (error: Exception) {
+                stopWaitingForPermission("Не удалось открыть настройки установки: ${error.message.orEmpty()}")
+            }
+        }
+    }
+
+    fun installSelected(context: Context) {
+        if (isBusy() || _uiState.value.isLoading) return
+        if (!installer.canRequestPackageInstalls(context)) {
+            openUnknownSourcesSettings(context)
             return
         }
-        _uiState.update {
-            val selected = it.selectedPackages.toMutableSet()
-            if (!selected.add(packageName)) selected.remove(packageName)
-            it.copy(selectedPackages = selected, message = null, isError = false)
+        if (prepareQueue(waitingForPermission = false)) installNext()
+    }
+
+    /** Continues only work explicitly requested before opening Android settings. */
+    fun onHostResumed(context: Context) {
+        if (queue.waitingForPermission) {
+            if (installer.canRequestPackageInstalls(context)) {
+                saveQueue(queue.copy(waitingForPermission = false))
+                _uiState.value = _uiState.value.copy(permissionRequested = false)
+                installNext()
+            } else {
+                stopWaitingForPermission("Разрешение на установку не предоставлено. Выбранные приложения сохранены.")
+            }
+        } else if (needsRecovery) {
+            needsRecovery = false
+            recoverInstallation()
+        } else if (queue.current == null && queue.remaining.isNotEmpty()) {
+            installNext()
         }
+        refreshInstalledRows()
+        refreshCatalogIfIdle()
     }
-    fun hasSelection() = _uiState.value.selectedPackages.isNotEmpty()
-    fun needsInstallPermission(context: Context) = hasSelection() && !installer.canRequestPackageInstalls(context)
-    fun unknownSourcesSettingsIntent(context: Context): Intent {
-        preferences.edit().putStringSet("selection", _uiState.value.selectedPackages).commit()
-        return installer.unknownSourcesSettingsIntent(context)
-    }
-    fun openUnknownSourcesSettings(context: Context) { context.startActivity(unknownSourcesSettingsIntent(context)) }
-    fun permissionDenied() {
-        _uiState.update { it.copy(message = "Разрешение не предоставлено. Выбранные приложения сохранены; разрешите установку в настройках Android", isError = true) }
-    }
-    fun installSelected(context: Context) {
-        if (_uiState.value.installing != null || _uiState.value.isLoading) return
-        if (!installer.canRequestPackageInstalls(context)) { permissionDenied(); return }
+
+    private fun prepareQueue(waitingForPermission: Boolean): Boolean {
         val selected = _uiState.value.selectedPackages
-        val apps = _uiState.value.rows.filter { it.updateAvailable && it.app.packageName in selected }.map { it.app }
-        if (apps.isEmpty()) {
-            _uiState.update { it.copy(message = "Сначала выберите приложения для установки", isError = false) }; return
+        val applications = _uiState.value.rows
+            .filter { it.updateAvailable && it.app.packageName in selected }
+            .map { it.app }
+            .sortedBy { it.packageName == appContext.packageName }
+        if (applications.isEmpty()) {
+            _uiState.value = _uiState.value.copy(message = "Сначала выберите приложения с доступными обновлениями")
+            return false
         }
-        generation++
-        queueStartedAt = System.currentTimeMillis()
-        queue = InstallationQueue.create(apps, appContext.packageName)
-        _uiState.update { it.copy(queueTotal = apps.size, message = null, isError = false) }
-        installNext()
+        InstallEvents.snapshot.value?.let { InstallEvents.consume(appContext, it.sessionId) }
+        stopDownload.set(false)
+        saveQueue(
+            InstallQueueState(
+                remaining = applications,
+                totalCount = applications.size,
+                waitingForPermission = waitingForPermission,
+                message = if (waitingForPermission) "Разрешите EZCH Update устанавливать приложения и вернитесь сюда" else null
+            )
+        )
+        _uiState.value = _uiState.value.copy(
+            totalCount = applications.size,
+            completedCount = 0,
+            failures = emptyList(),
+            downloadBytes = 0,
+            totalBytes = 0,
+            permissionRequested = waitingForPermission,
+            message = queue.message
+        )
+        return true
     }
-    fun cancelInstall() {
-        val activeQueue = queue ?: return
-        val activeId = sessionId
-        generation++
-        sessionId = null
-        queue = null
-        downloadJob?.cancel()
-        downloadJob = null
-        preferences.edit().remove("queue").commit()
-        val outstanding = activeQueue.apps.drop(activeQueue.index).map { it.packageName }.toSet()
-        _uiState.update { clearProgress(it).copy(selectedPackages = outstanding,
-            message = "Очередь отменена. Установлено: ${activeQueue.succeeded}. Завершённые установки сохранены", isError = false) }
-        val ownedSessions = InstallEvents.activeSessions(appContext).map { it.sessionId }.toSet() + listOfNotNull(activeId)
-        ownedSessions.forEach { installer.cancel(appContext, it) }
-        refreshInstalled()
+
+    private fun stopWaitingForPermission(message: String) {
+        saveQueue(InstallQueueState(message = message))
+        _uiState.value = _uiState.value.copy(
+            installing = null,
+            permissionRequested = false,
+            completedCount = 0,
+            totalCount = 0,
+            message = message
+        )
     }
 
     private fun installNext() {
-        val activeQueue = queue ?: return
-        val current = activeQueue.current
-        if (current == null) {
-            queue = null
-            sessionId = null
-            preferences.edit().remove("queue").commit()
-            val failures = activeQueue.failures
-            val detail = failures.entries.joinToString("; ") { (pkg, reason) -> "${activeQueue.apps.first { it.packageName == pkg }.name}: $reason" }
-            _uiState.update { clearProgress(it).copy(selectedPackages = failures.keys.toSet(),
-                message = "Установлено: ${activeQueue.succeeded} из ${activeQueue.apps.size}." +
-                    if (failures.isEmpty()) " Очередь завершена" else " Ошибки: $detail", isError = failures.isNotEmpty()) }
-            refreshInstalled()
+        if (queue.current != null || queue.waitingForPermission || downloadRunning) return
+        val next = queue.remaining.firstOrNull()
+        if (next == null) {
+            finishQueue()
             return
         }
-        sessionId = null
-        persistQueue()
-        val operation = generation
-        _uiState.update { it.copy(installing = current, queueIndex = activeQueue.index + 1,
-            queueTotal = activeQueue.apps.size, installStage = "Получение ссылки на APK…", installProgress = null,
-            downloadedBytes = 0, totalBytes = null, pendingSessionId = null) }
-        downloadJob = viewModelScope.launch {
-            try {
-                val submission = installer.install(appContext, current) { progress ->
-                    if (generation == operation) _uiState.update {
-                        it.copy(installStage = when (progress.stage.name) {
-                            "RESOLVING" -> "Получение ссылки на APK…"
-                            "DOWNLOADING" -> "Скачивание…"
-                            "VERIFYING" -> "Проверка APK и подписи…"
-                            else -> "Подготовка установки…"
-                        }, downloadedBytes = progress.bytesDownloaded, totalBytes = progress.totalBytes,
-                            installProgress = progress.totalBytes?.takeIf { total -> total > 0 }?.let { total ->
-                                (progress.bytesDownloaded.toDouble() / total).toFloat().coerceIn(0f, 1f) })
+        val installed = installedApp(next.packageName)
+        saveQueue(queue.copy(current = next, remaining = queue.remaining.drop(1), sessionId = null))
+        _uiState.value = _uiState.value.copy(installing = next, downloadBytes = 0, totalBytes = 0)
+        if (installed != null && installed.versionCode >= next.versionCode) {
+            completeCurrent(success = true, message = "${next.name}: актуальная версия уже установлена")
+            return
+        }
+        val operation = ++operationId
+        val message = "Скачивание ${queue.completedCount + 1}/${queue.totalCount}: ${next.name}"
+        saveQueue(queue.copy(message = message))
+        _uiState.value = _uiState.value.copy(message = message)
+        downloadRunning = true
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                installer.install(appContext, next) { bytes, total ->
+                    if (stopDownload.get()) throw InterruptedIOException("Установка отменена")
+                    viewModelScope.launch {
+                        if (operation == operationId && queue.current?.packageName == next.packageName) {
+                            _uiState.value = _uiState.value.copy(downloadBytes = bytes, totalBytes = total.coerceAtLeast(0))
+                        }
                     }
                 }
-                if (generation != operation) { installer.cancel(appContext, submission.sessionId); return@launch }
-                sessionId = submission.sessionId
-                persistQueue()
-                _uiState.update { it.copy(installStage = "Ожидание результата Android…", installProgress = null) }
-                InstallEvents.observe(appContext).value.firstOrNull { it.sessionId == sessionId }?.let { handleInstallResult(it) }
-            } catch (cancelled: CancellationException) { throw cancelled
-            } catch (error: Exception) {
-                if (generation == operation) finishCurrent(error.message ?: "Не удалось установить приложение")
             }
-        }
-    }
-    private suspend fun handleInstallResult(result: InstallResult) {
-        val current = queue?.current ?: return
-        if (sessionId != result.sessionId || current.packageName != result.packageName || handlingResult) return
-        if (result.status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-            _uiState.update { it.copy(pendingSessionId = result.sessionId,
-                installStage = "Подтвердите установку в окне Android", installProgress = null) }; return
-        }
-        handlingResult = true
-        val operation = generation
-        try {
-            var error: String? = result.message ?: "Android отклонил установку"
-            if (result.status == PackageInstaller.STATUS_SUCCESS) {
-                var verified = false
-                for (attempt in 0 until 8) {
-                    val installed = withContext(Dispatchers.IO) { repository.installedApp(appContext.packageManager, current.packageName) }
-                    if (installed != null && installed.versionCode >= current.versionCode) { verified = true; break }
-                    delay(250)
+            downloadRunning = false
+            if (operation != operationId || queue.current?.packageName != next.packageName) {
+                result.getOrNull()?.let(::abandonSession)
+                if (queue.current == null) installNext()
+                return@launch
+            }
+            result.fold(
+                onSuccess = { sessionId ->
+                    saveQueue(queue.copy(sessionId = sessionId))
+                    if (queue.cancelRequested) {
+                        abandonSession(sessionId)
+                        completeCurrent(false, "${next.name}: установка отменена")
+                    } else {
+                        _uiState.value = _uiState.value.copy(message = "Подтвердите установку ${next.name} в окне Android")
+                        handleInstallSnapshot(InstallEvents.snapshot.value)
+                    }
+                },
+                onFailure = { error ->
+                    completeCurrent(false, "${next.name}: ${if (queue.cancelRequested) "установка отменена" else error.message ?: "ошибка установки"}")
                 }
-                error = if (verified) null else "Android сообщил об успехе, но новая версия не найдена. Проверьте приложение"
-            }
-            if (operation == generation) finishCurrent(error)
-        } finally { handlingResult = false }
-    }
-    private fun finishCurrent(error: String?) {
-        val activeQueue = queue ?: return
-        val current = activeQueue.current ?: return
-        val completedSession = sessionId
-        sessionId = null
-        activeQueue.finish(current.packageName, error)
-        persistQueue()
-        if (completedSession != null) InstallEvents.acknowledge(appContext, completedSession)
-        _uiState.update { it.copy(pendingSessionId = null,
-            selectedPackages = if (error == null) it.selectedPackages - current.packageName else it.selectedPackages) }
-        viewModelScope.launch {
-            val rows = withContext(Dispatchers.IO) { rowsFor(_uiState.value.rows.map { it.app }) }
-            _uiState.update { it.copy(rows = rows) }
+            )
         }
-        installNext()
     }
-    private fun rowsFor(apps: List<RemoteApp>) = apps.map { AppRow(it, repository.installedApp(appContext.packageManager, it.packageName)) }
-    private fun clearProgress(state: CatalogUiState) = state.copy(installing = null, pendingSessionId = null,
-        installStage = null, installProgress = null, downloadedBytes = 0, totalBytes = null, queueIndex = 0, queueTotal = 0)
-    private fun persistQueue() {
-        val current = queue ?: return
-        val apps = JSONArray()
-        current.apps.forEach { app ->
-            apps.put(JSONObject().put("name", app.name).put("packageName", app.packageName).put("versionCode", app.versionCode)
-                .put("versionName", app.versionName).put("apkUrl", app.apkUrl).put("apkPath", app.apkPath)
-                .put("iconUrl", app.iconUrl).put("sha256", app.sha256).put("sizeBytes", app.sizeBytes))
+
+    private fun handleInstallSnapshot(result: InstallSnapshot?) {
+        result ?: return
+        val current = queue.current ?: return
+        if (current.packageName != result.packageName) return
+        // commit may deliver its callback before the IO call returns its session ID.
+        // Waiting for that ID also rejects late callbacks from an earlier attempt.
+        if (queue.sessionId == null && downloadRunning) return
+        if (queue.sessionId != null && queue.sessionId != result.sessionId) return
+        if (result.status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            saveQueue(queue.copy(sessionId = result.sessionId))
+            _uiState.value = _uiState.value.copy(message = "Подтвердите установку ${current.name} в окне Android")
+            return
         }
-        val failures = JSONObject()
-        current.failures.forEach { (pkg, message) -> failures.put(pkg, message) }
-        preferences.edit().putString("queue", JSONObject().put("apps", apps).put("index", current.index)
-            .put("succeeded", current.succeeded).put("failures", failures).put("sessionId", sessionId)
-            .put("startedAt", queueStartedAt).toString()).commit()
+        val success = result.status == PackageInstaller.STATUS_SUCCESS
+        completeCurrent(
+            success,
+            if (success) "${current.name} установлен" else "${current.name}: ${result.message ?: "Android отклонил установку"}"
+        )
+        InstallEvents.consume(appContext, result.sessionId)
     }
-    private fun restoreQueue() {
-        val saved = preferences.getString("queue", null) ?: return
-        try {
-            val json = JSONObject(saved)
-            val array = json.getJSONArray("apps")
-            val apps = List(array.length()) { index ->
-                val app = array.getJSONObject(index)
-                RemoteApp(app.getString("name"), app.getString("packageName"), app.getLong("versionCode"), app.getString("versionName"),
-                    app.getString("apkUrl"), app.getString("apkPath"), app.optString("iconUrl").takeIf { it.isNotBlank() },
-                    app.optString("sha256").takeIf { it.isNotBlank() }, app.optLong("sizeBytes").takeIf { it > 0 })
+
+    fun onConfirmationLaunchFailed(sessionId: Int, message: String) {
+        val current = queue.current ?: return
+        if (queue.sessionId == null && downloadRunning) {
+            val pending = InstallEvents.snapshot.value ?: return
+            if (pending.sessionId != sessionId || pending.packageName != current.packageName) return
+            abandonSession(sessionId)
+            InstallEvents.record(
+                appContext,
+                InstallSnapshot(current.packageName, sessionId, PackageInstaller.STATUS_FAILURE, message)
+            )
+            return
+        }
+        if (queue.sessionId != sessionId) return
+        abandonSession(sessionId)
+        InstallEvents.consume(appContext, sessionId)
+        completeCurrent(false, "${current.name}: $message")
+    }
+
+    fun cancelInstallation() {
+        if (queue.waitingForPermission) {
+            stopWaitingForPermission("Установка отменена. Выбранные приложения сохранены.")
+            return
+        }
+        val current = queue.current ?: return
+        stopDownload.set(true)
+        saveQueue(queue.copy(remaining = emptyList(), cancelRequested = true))
+        val sessionId = queue.sessionId
+        if (sessionId != null) {
+            abandonSession(sessionId)
+            InstallEvents.consume(appContext, sessionId)
+            completeCurrent(false, "${current.name}: установка отменена")
+        } else {
+            _uiState.value = _uiState.value.copy(message = "Отмена ${current.name}; завершается текущая операция скачивания")
+        }
+    }
+
+    private fun recoverInstallation() {
+        val current = queue.current ?: return
+        val event = InstallEvents.snapshot.value
+        if (event?.packageName == current.packageName) {
+            handleInstallSnapshot(event)
+            if (queue.current == null || queue.current?.packageName != current.packageName) return
+        }
+        val packageInstaller = appContext.packageManager.packageInstaller
+        val session = queue.sessionId?.let { packageInstaller.getSessionInfo(it) }
+            ?: packageInstaller.mySessions.lastOrNull { it.appPackageName == current.packageName && it.isSealed }
+        if (session != null) {
+            if (!session.isSealed) {
+                abandonSession(session.sessionId)
+                completeCurrent(false, "${current.name}: предыдущая передача APK прервана; выберите приложение для повтора")
+                return
             }
-            val failures = linkedMapOf<String, String>()
-            json.getJSONObject("failures").let { entries -> entries.keys().forEach { failures[it] = entries.getString(it) } }
-            val restored = InstallationQueue(apps, json.getInt("index"), json.getInt("succeeded"), failures)
-            val active = restored.current
-            queueStartedAt = json.optLong("startedAt", 0)
-            val savedSession = (if (json.isNull("sessionId")) null else json.getInt("sessionId"))
-                ?: InstallEvents.activeSessions(appContext).firstOrNull { it.packageName == active?.packageName }?.sessionId
-                ?: InstallEvents.observe(appContext).value.lastOrNull {
-                    it.packageName == active?.packageName && it.versionCode == active?.versionCode &&
-                        queueStartedAt > 0 && it.startedAt >= queueStartedAt
-                }?.sessionId
-            if (active != null && savedSession != null) {
-                queue = restored
-                sessionId = savedSession
-                _uiState.update { it.copy(installing = active, queueIndex = restored.index + 1, queueTotal = apps.size,
-                    selectedPackages = apps.drop(restored.index).map { item -> item.packageName }.toSet(), installStage = "Восстановление результата установки…") }
+            saveQueue(queue.copy(sessionId = session.sessionId))
+            if (queue.cancelRequested) {
+                cancelInstallation()
             } else {
-                preferences.edit().remove("queue").commit()
-                _uiState.update { it.copy(selectedPackages = apps.drop(restored.index).map { item -> item.packageName }.toSet(),
-                    message = "Предыдущая очередь была прервана. Выбор сохранён; нажмите «Установить выбранные»", isError = true) }
+                _uiState.value = _uiState.value.copy(
+                    message = "Android ещё обрабатывает ${current.name}. Если окно установки не появилось, отмените и повторите установку."
+                )
             }
-        } catch (_: Exception) {
-            preferences.edit().remove("queue").commit()
-            _uiState.update { it.copy(message = "Не удалось восстановить прежнюю очередь. Выберите приложения заново", isError = true) }
+            return
         }
+        val installed = installedApp(current.packageName)
+        val success = installed != null && installed.versionCode >= current.versionCode
+        completeCurrent(
+            success,
+            if (success) "${current.name} установлен" else "${current.name}: предыдущая установка прервана; выберите приложение для повтора"
+        )
+    }
+
+    private fun completeCurrent(success: Boolean, message: String) {
+        val current = queue.current ?: return
+        operationId++
+        needsRecovery = false
+        val failures = if (success) queue.failures else queue.failures + message
+        saveQueue(
+            queue.copy(
+                current = null,
+                sessionId = null,
+                completedCount = queue.completedCount + 1,
+                successCount = queue.successCount + if (success) 1 else 0,
+                failures = failures,
+                message = message
+            )
+        )
+        _uiState.value = _uiState.value.copy(
+            installing = null,
+            completedCount = queue.completedCount,
+            failures = failures,
+            message = message,
+            selectedPackages = _uiState.value.selectedPackages - current.packageName
+        )
+        refreshInstalledRows()
+        if (!downloadRunning) installNext()
+    }
+
+    private fun finishQueue() {
+        val cancelled = (queue.totalCount - queue.completedCount).coerceAtLeast(0)
+        val message = buildString {
+            append("Установлено: ${queue.successCount}. Ошибок: ${queue.failures.size}.")
+            if (cancelled > 0) append(" Отменено: $cancelled.")
+            if (queue.failures.isNotEmpty()) append("\n${queue.failures.joinToString("\n")}")
+        }
+        saveQueue(queue.copy(waitingForPermission = false, message = message))
+        _uiState.value = _uiState.value.copy(
+            installing = null,
+            permissionRequested = false,
+            selectedPackages = emptySet(),
+            message = message,
+            downloadBytes = 0,
+            totalBytes = 0
+        )
+        loadCatalog(clearMessage = false)
+    }
+
+    private fun refreshInstalledRows() {
+        val rows = _uiState.value.rows
+        if (rows.isEmpty()) return
+        val refreshed = rows.map { it.copy(installed = installedApp(it.app.packageName)) }
+        _uiState.value = _uiState.value.copy(
+            rows = refreshed,
+            selectedPackages = if (isBusy()) _uiState.value.selectedPackages
+            else _uiState.value.selectedPackages.intersect(refreshed.filter { it.updateAvailable }.map { it.app.packageName }.toSet())
+        )
+    }
+
+    private fun installedApp(packageName: String): InstalledApp? =
+        repository.installedApp(appContext.packageManager, packageName)
+
+    private fun abandonSession(sessionId: Int) {
+        runCatching { appContext.packageManager.packageInstaller.abandonSession(sessionId) }
+    }
+
+    private fun isBusy(): Boolean = queue.current != null || queue.waitingForPermission || downloadRunning
+
+    private fun saveQueue(value: InstallQueueState) {
+        queue = value
+        queueStore.save(value)
     }
 }

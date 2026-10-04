@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <!-- Поддержка Android TV без сенсорного экрана -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <!-- Доступ к списку запускаемых приложений -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <package android:name="com.example.ezchupdate" />
+        <package android:name="io.github.romanvht.byedpi" />
+        <package android:name="ru.tiardev.kinotrend" />
+        <package android:name="io.lift.app" />
+        <package android:name="ru.yourok.num" />
+        <package android:name="com.play.pandafref" />
+        <package android:name="top.rootu.prisma" />
+        <package android:name="com.spocky.projengmenu" />
+        <package android:name="ru.vk.store.tv" />
+        <package android:name="ru.rutube.app.tv" />
+        <package android:name="ru.twicker.serialtrend" />
+        <package android:name="jp.snowlife01.android.appkiller2" />
+        <package android:name="ru.yourok.torrserve" />
+        <package android:name="com.vk.tv" />
+        <package android:name="ru.vokino.web" />
+        <package android:name="mobi.zona" />
+        <package android:name="limehd.ru.lite" />
+        <package android:name="net.gtvbox.vimuhd" />
+        <package android:name="com.alphainventor.filemanager" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/ezch_icon"
+        android:banner="@drawable/ezch_banner"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ezch_icon"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HomeEZCH"
+        android:usesCleartextTraffic="false">
+
+        <receiver android:name=".install.InstallResultReceiver" android:exported="false" />
+        <activity android:name=".UpdaterActivity" android:exported="false" />
+        <activity android:name=".FileBrowserActivity" android:exported="false" />
+        <service android:name=".HomeKeyService" android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_keys" />
+        </service>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:launchMode="singleTask"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.HomeEZCH"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- EZCH как системный HOME -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Отображение приложения в Android TV -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+
+            <!-- Обычный запуск приложения -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>

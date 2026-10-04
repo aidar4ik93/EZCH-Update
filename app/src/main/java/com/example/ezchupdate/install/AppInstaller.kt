@@ -3,177 +3,225 @@ package com.example.ezchupdate.install
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import com.example.ezchupdate.data.HttpsConnection
 import com.example.ezchupdate.data.RemoteApp
+import com.example.ezchupdate.data.QuarantinedApks
 import com.example.ezchupdate.data.versionCodeCompat
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
-import java.io.FileInputStream
+import java.net.URLEncoder
 import java.security.MessageDigest
-import java.util.zip.ZipFile
+import java.util.Locale
 
-data class InstallSubmission(val sessionId: Int, val packageName: String)
-
-/** Downloads and prepares one APK. Submission is not success: wait for its exact system callback. */
 class AppInstaller {
     fun canRequestPackageInstalls(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
 
     fun unknownSourcesSettingsIntent(context: Context): Intent =
         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
 
-    suspend fun install(
+    fun install(
         context: Context,
         app: RemoteApp,
-        onProgress: (InstallProgress) -> Unit = {}
-    ): InstallSubmission = withContext(Dispatchers.IO) {
-        if (!canRequestPackageInstalls(context)) {
-            throw InstallException("Разрешите EZCH Update устанавливать приложения в настройках Android")
-        }
-        val apk = ApkDownloader().download(File(context.cacheDir, "downloads"), app, onProgress)
+        onProgress: (Long, Long) -> Unit = { _, _ -> }
+    ): Result<Int> = runCatching {
+        enforceQuarantine(app)
+        check(canRequestPackageInstalls(context)) { "Разрешите установку приложений в настройках Android" }
+        val apkFile = downloadApk(context, app, onProgress)
         try {
-            currentCoroutineContext().ensureActive()
-            onProgress(InstallProgress(InstallStage.VERIFYING))
-            validateApk(context.packageManager, apk, app)
-            currentCoroutineContext().ensureActive()
-            onProgress(InstallProgress(InstallStage.PREPARING, 0, apk.length()))
-            commitInstall(context, apk, app, onProgress)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: InstallException) {
-            throw error
-        } catch (error: Exception) {
-            currentCoroutineContext().ensureActive()
-            throw InstallException("Не удалось подготовить установку: ${error.message ?: error.javaClass.simpleName}", error)
+            installFile(context, app, apkFile).getOrThrow()
         } finally {
-            ApkDownloader.release(apk)
+            apkFile.delete()
         }
     }
 
-    fun cancel(context: Context, sessionId: Int) {
-        val active = InstallEvents.activeSession(context, sessionId) ?: return
-        val success = runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }.isSuccess
-        InstallEvents.record(context, InstallResult(
-            sessionId, active.packageName,
-            if (success) PackageInstaller.STATUS_FAILURE_ABORTED else PackageInstaller.STATUS_FAILURE,
-            if (success) "Установка отменена" else "Android уже завершает установку. Проверьте установленную версию"
-        ))
+    /** Device tests use this with a locally built, signed fixture APK. */
+    internal fun installFile(context: Context, app: RemoteApp, apkFile: File): Result<Int> = runCatching {
+        enforceQuarantine(app)
+        check(canRequestPackageInstalls(context)) { "Разрешите установку приложений в настройках Android" }
+        validateApk(context.packageManager, apkFile, app)
+        commitInstall(context, apkFile, app)
     }
 
-    fun confirmationIntent(context: Context, sessionId: Int): Intent? = InstallEvents.confirmation(context, sessionId)
-
-    fun confirmationLaunchFailed(context: Context, sessionId: Int, detail: String?) {
-        val active = InstallEvents.activeSession(context, sessionId) ?: return
-        runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
-        InstallEvents.record(context, InstallResult(sessionId, active.packageName, PackageInstaller.STATUS_FAILURE,
-            "Android не открыл подтверждение установки. Повторите установку из открытого приложения${detail?.let { ": $it" }.orEmpty()}"))
+    private fun enforceQuarantine(app: RemoteApp) {
+        check(!QuarantinedApks.isQuarantined(app)) {
+            "Этот файл временно исключён из каталога после проверки безопасности: ${app.name}"
+        }
     }
 
-    @Suppress("DEPRECATION")
-    internal fun validateApk(manager: PackageManager, apk: File, app: RemoteApp) {
-        // Android 13's archive parser collects/verifies certificates only with GET_SIGNATURES.
-        // Request both: modern signing history plus verified legacy certificates on those builds.
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+    private fun downloadApk(context: Context, app: RemoteApp, onProgress: (Long, Long) -> Unit): File {
+        val directory = File(context.cacheDir, "downloads").apply { mkdirs() }
+        val apkFile = File(directory, "${app.packageName}-${app.versionCode}.apk")
+        val connection = HttpsConnection.open(resolveDownloadUrl(app), 60_000)
+        try {
+            val total = connection.contentLengthLong
+            var downloaded = 0L
+            onProgress(0, total)
+            connection.inputStream.use { input ->
+                apkFile.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var lastUpdate = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                        downloaded += count
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdate >= 150) {
+                            onProgress(downloaded, total)
+                            lastUpdate = now
+                        }
+                    }
+                }
+            }
+            check(downloaded > 0) { "Сервер вернул пустой APK: ${app.name}" }
+            check(total < 0 || downloaded == total) { "APK загружен не полностью: ${app.name}" }
+            onProgress(downloaded, total)
+            return apkFile
+        } catch (error: Exception) {
+            apkFile.delete()
+            throw error
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun resolveDownloadUrl(app: RemoteApp): String {
+        val host = Uri.parse(app.apkUrl).host?.lowercase()
+        if (host !in setOf("disk.yandex.ru", "disk.yandex.com", "yadi.sk")) return app.apkUrl
+        val key = URLEncoder.encode(app.apkUrl, "UTF-8")
+        val connection = HttpsConnection.open("https://cloud-api.yandex.net/v1/disk/public/resources?public_key=$key")
+        val metadata = try {
+            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        } finally {
+            connection.disconnect()
+        }
+        val path = if (metadata.optString("type") == "dir") {
+            "&path=${URLEncoder.encode(app.apkPath, "UTF-8")}"
+        } else ""
+        val download = HttpsConnection.open(
+            "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$key$path"
+        )
+        return try {
+            JSONObject(download.inputStream.bufferedReader().use { it.readText() }).getString("href")
+        } finally {
+            download.disconnect()
+        }
+    }
+
+    private fun validateApk(packageManager: PackageManager, apkFile: File, app: RemoteApp) {
+        app.sizeBytes?.let { expectedSize ->
+            check(apkFile.length() == expectedSize) { "Размер APK не совпадает с каталогом: ${app.name}" }
+        }
+        app.sha256?.let { expectedHash ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            apkFile.inputStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            check(digest.digest().toHex().equals(expectedHash, ignoreCase = true)) {
+                "SHA-256 APK не совпадает с каталогом: ${app.name}; файл отклонён"
+            }
+        }
+        @Suppress("DEPRECATION")
+        val signingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
-        } else PackageManager.GET_SIGNATURES
-        val archive = manager.getPackageArchiveInfo(apk.absolutePath, flags)
-            ?: throw InstallException("Загруженный файл ${app.name} не является корректным подписанным APK")
-        if (archive.packageName != app.packageName) {
-            throw InstallException("APK содержит пакет ${archive.packageName}, а каталог ожидает ${app.packageName}. Обновите каталог")
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
         }
-        if (archive.versionCodeCompat() != app.versionCode) {
-            throw InstallException("Версия APK ${archive.versionCodeCompat()} не совпадает с каталогом (${app.versionCode}). Обновите каталог")
+        @Suppress("DEPRECATION")
+        val archive = packageManager.getPackageArchiveInfo(apkFile.absolutePath, signingFlags)
+            ?: error("Загруженный файл ${app.name} не является APK")
+        check(archive.packageName == app.packageName) { "Имя пакета APK не совпадает с каталогом: ${app.name}" }
+        check(archive.versionCodeCompat() == app.versionCode) { "Версия APK не совпадает с каталогом: ${app.name}" }
+        val archiveSigners = currentSignerDigests(archive)
+        check(archiveSigners.isNotEmpty()) { "Не удалось проверить подпись APK: ${app.name}" }
+        app.signerSha256?.let { expectedCertificate ->
+            check(expectedCertificate.lowercase(Locale.ROOT) in archiveSigners) {
+                "Сертификат подписи APK не совпадает с каталогом: ${app.name}; файл отклонён"
+            }
         }
-        val minSdk = archive.applicationInfo?.minSdkVersion ?: 1
-        if (minSdk > Build.VERSION.SDK_INT) throw InstallException("${app.name} требует Android API $minSdk; на устройстве API ${Build.VERSION.SDK_INT}")
-        val incoming = signers(archive)
-        if (incoming.isEmpty()) throw InstallException("APK не содержит проверяемой цифровой подписи")
-        val installed = try { manager.getPackageInfo(app.packageName, flags) } catch (_: PackageManager.NameNotFoundException) { null }
+        val installed = try {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(app.packageName, signingFlags)
+        } catch (_: PackageManager.NameNotFoundException) { null }
         if (installed != null) {
-            if (installed.versionCodeCompat() > app.versionCode) throw InstallException("На устройстве уже установлена более новая версия ${app.name}")
-            if (!DownloadPolicy.compatibleSigners(signers(installed), incoming, signerHistory(archive))) {
-                throw InstallException("Подпись ${app.name} отличается от установленной версии. Получите APK того же разработчика")
+            val installedSigners = currentSignerDigests(installed)
+            // A single new signer may carry an Android-verified proof of rotation
+            // from the installed signer. Multiple signer sets must match exactly.
+            val validRotation = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                installedSigners.size == 1 && archiveSigners.size == 1 &&
+                archive.signingInfo?.signingCertificateHistory.orEmpty()
+                    .map { MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).toHex() }
+                    .containsAll(installedSigners)
+            check(installedSigners.isNotEmpty() && (installedSigners == archiveSigners || validRotation)) {
+                "${app.name}: подпись APK несовместима с установленной версией; требуется сборка с прежним ключом"
             }
         }
-        ZipFile(apk).use { zip ->
-            if (zip.getEntry("AndroidManifest.xml") == null) throw InstallException("В APK отсутствует AndroidManifest.xml")
-            val abis = zip.entries().asSequence().map { it.name }.filter { it.startsWith("lib/") && it.endsWith(".so") }
-                .mapNotNull { it.split('/').getOrNull(1) }.toSet()
-            if (abis.isNotEmpty() && abis.intersect(Build.SUPPORTED_ABIS.toSet()).isEmpty()) {
-                throw InstallException("APK не поддерживает процессор устройства (${Build.SUPPORTED_ABIS.joinToString()}). Нужна другая сборка")
-            }
+        check(installed == null || installed.versionCodeCompat() < app.versionCode) {
+            "${app.name}: эта или более новая версия уже установлена"
         }
     }
 
     @Suppress("DEPRECATION")
-    internal fun signers(info: PackageInfo): Set<String> {
-        val modern = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo?.apkContentsSigners else null
-        // Both fields originate from Android's certificate verifier, never ZIP certificate files.
-        val signatures = modern?.takeIf { it.isNotEmpty() } ?: info.signatures
-        return signatures.orEmpty().map { digest(it.toByteArray()) }.toSet()
+    private fun currentSignerDigests(info: PackageInfo): Set<String> {
+        // Some TV package parsers leave SigningInfo empty for archive files even
+        // when GET_SIGNING_CERTIFICATES is requested. Request both representations
+        // and use the actual legacy certificates rather than skipping verification.
+        val currentSigners = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() }
+        } else null
+        val signatures = currentSigners ?: info.signatures.orEmpty()
+        return signatures.map {
+            MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).toHex()
+        }.toSet()
     }
 
-    private fun signerHistory(info: PackageInfo): Set<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        val history = info.signingInfo?.signingCertificateHistory.orEmpty().map { digest(it.toByteArray()) }.toSet()
-        history.ifEmpty { signers(info) }
-    } else signers(info)
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
-    private fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private suspend fun commitInstall(context: Context, apk: File, app: RemoteApp, progress: (InstallProgress) -> Unit): InstallSubmission {
+    private fun commitInstall(context: Context, apkFile: File, app: RemoteApp): Int {
         val installer = context.packageManager.packageInstaller
         val parameters = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(app.packageName)
-            setSize(apk.length())
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+            setSize(apkFile.length())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                setPackageSource(PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
+            }
         }
         val sessionId = installer.createSession(parameters)
-        val submission = InstallSubmission(sessionId, app.packageName)
         try {
-            // Persist before writing/commit so a callback or process restart cannot lose ownership.
-            InstallEvents.started(context, submission, app.versionCode)
             installer.openSession(sessionId).use { session ->
-                FileInputStream(apk).use { input ->
-                    session.openWrite("base.apk", 0, apk.length()).use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var written = 0L
-                        while (true) {
-                            currentCoroutineContext().ensureActive()
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
-                            written += count
-                            progress(InstallProgress(InstallStage.PREPARING, written, apk.length()))
-                        }
+                apkFile.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, apkFile.length()).use { output ->
+                        input.copyTo(output)
                         session.fsync(output)
                     }
                 }
-                currentCoroutineContext().ensureActive()
-                val callback = Intent(context, InstallResultReceiver::class.java)
-                    .setAction("${context.packageName}.INSTALL_RESULT.$sessionId")
-                    .setData(Uri.parse("ezch-install://session/$sessionId"))
+                val intent = Intent(context, InstallResultReceiver::class.java)
                     .setPackage(context.packageName)
                     .putExtra(InstallResultReceiver.EXTRA_CATALOG_PACKAGE, app.packageName)
-                    .putExtra(InstallResultReceiver.EXTRA_OWN_SESSION_ID, sessionId)
-                val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-                val statusIntent = PendingIntent.getBroadcast(context, sessionId, callback, flags)
-                InstallEvents.markCommitted(context, sessionId)
-                session.commit(statusIntent.intentSender)
-                return submission
+                    .putExtra(InstallResultReceiver.EXTRA_SESSION_ID, sessionId)
+                val mutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+                val callback = PendingIntent.getBroadcast(context, sessionId, intent, PendingIntent.FLAG_UPDATE_CURRENT or mutable)
+                session.commit(callback.intentSender)
             }
         } catch (error: Exception) {
             runCatching { installer.abandonSession(sessionId) }
-            InstallEvents.record(context, InstallResult(sessionId, app.packageName, PackageInstaller.STATUS_FAILURE_ABORTED,
-                if (error is CancellationException) "Установка отменена" else "Не удалось передать APK установщику Android"))
             throw error
         }
+        return sessionId
     }
 }

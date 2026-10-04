@@ -6,7 +6,10 @@
       "versionCode": 14,
       "versionName": "1.4",
       "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.4.0/EZCH_Update_1.4.apk",
-      "apkPath": "/EZCH_Update_1.4.apk"
+      "apkPath": "/EZCH_Update_1.4.apk",
+      "sha256": "cb8cb7567b5baa2ee35d6ed573ac4022485ea92aaf02c626647b103484c85b13",
+      "sizeBytes": 22644394,
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },
     {
       "name": "ByeByeDPI",
@@ -16,7 +19,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/ByeByeDPI-v1.7.8-armeabi-v7a-release.apk",
       "sha256": "cbcb88fde3967f1be03c7fc3fb674e12d879c47fc2f793bd0d999fd860aa0644",
-      "sizeBytes": 2700781
+      "sizeBytes": 2700781,
+      "signerSha256": "77451075acea406406475d74d459883a49a64051faf32e42f718f3f9777a8dfb"
     },
     {
       "name": "KinoTrend",
@@ -26,7 +30,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/KinoTrend-2.3.8 (1).apk",
       "sha256": "d420d0d74fa8d12b64f2d5639bf0d0960b72c18eb5082f32270ee87bbd46d3f9",
-      "sizeBytes": 3944263
+      "sizeBytes": 3944263,
+      "signerSha256": "0b717f2d34c3be3e1f298726ce38e335294665832c97795f145edc0d93bcb499"
     },
     {
       "name": "Lift",
@@ -36,7 +41,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/Lift 0.2.45.apk",
       "sha256": "b81d3f8539af8d32d5f6b4f5dbf41bedb8d5577b6a8529520852fa548ca717b4",
-      "sizeBytes": 5047299
+      "sizeBytes": 5047299,
+      "signerSha256": "ccc96373b012b745844558a28edef61e6b2e06fcb43d7d6bbb5f4446379f3c01"
     },
     {
       "name": "NUM",
@@ -46,17 +52,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/NUM 1.0.150.apk",
       "sha256": "2a795671a8e0f958d1c0068eea5ff4284151e58d8b98e7f7fc237afc821eab6c",
-      "sizeBytes": 16645956
-    },
-    {
-      "name": "Panda Vision",
-      "packageName": "com.play.pandafref",
-      "versionCode": 1001,
-      "versionName": "2.0",
-      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
-      "apkPath": "/Panda Vision 2.0.apk",
-      "sha256": "3d84816985f927cc9aecae2015206423d431e402a4a8cc2603e210a21d5620e1",
-      "sizeBytes": 11442514
+      "sizeBytes": 16645956,
+      "signerSha256": "870dd0e9f539439e052644d5d94fa014905410a2f0e298112775e4252292b190"
     },
     {
       "name": "PRISMA",
@@ -66,17 +63,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/PRISMA 1.3.4-RuStore.apk",
       "sha256": "b15c9c1293acaedcb1593a996cac06782bfc3978e8bc9c9fa1ffa72e83501032",
-      "sizeBytes": 69548430
-    },
-    {
-      "name": "Projectivy Launcher",
-      "packageName": "com.spocky.projengmenu",
-      "versionCode": 92,
-      "versionName": "4.70 ST",
-      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
-      "apkPath": "/Projectivy Launcher 4.70 ST.apk",
-      "sha256": "ae3aa779708fc2d32c298871af6cc139ca4864c18bf8275a22d1726da323a8bc",
-      "sizeBytes": 12400425
+      "sizeBytes": 69548430,
+      "signerSha256": "86d0f988d9f548ba8ed6c9e14d69dacb2d824402e104187e8d026453d2fb670d"
     },
     {
       "name": "RuStore",
@@ -86,7 +74,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/RuStore 1.110.0.6.apk",
       "sha256": "aac6945a9f781687b22a945776c98a2897fa92683c78347610a65b8c8968ca7f",
-      "sizeBytes": 23308904
+      "sizeBytes": 23308904,
+      "signerSha256": "661f20828ef780de0b79bc59f26a30864316355f30e4f91cfa14a20791839914"
     },
     {
       "name": "RUTUBE",
@@ -96,7 +85,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/RUTUBE 31.16.0.TV-rustore.apk",
       "sha256": "8239adcaa835efd73ec197c420784de289bffaf2dd0111c76ba6ad105544dac3",
-      "sizeBytes": 25165178
+      "sizeBytes": 25165178,
+      "signerSha256": "e907019f373b17cb2efc3525d738d636a99347ee3e0bc683dfba466cad1841d9"
     },
     {
       "name": "SerialTrend",
@@ -106,17 +96,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/SerialTrend 0.0.5a.apk",
       "sha256": "e05d951a434d5f8f41ec110ad21ff9beb7b7fe68fb615d9d631ff697ebade46d",
-      "sizeBytes": 3494768
-    },
-    {
-      "name": "Task Killer TV",
-      "packageName": "jp.snowlife01.android.appkiller2",
-      "versionCode": 43,
-      "versionName": "4.0.2",
-      "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
-      "apkPath": "/Task Killer TV 4.0.2.apk",
-      "sha256": "8525943680e10080489107c6a52df13dc459c832c3ee8f550ad0ada669bac74c",
-      "sizeBytes": 1047744
+      "sizeBytes": 3494768,
+      "signerSha256": "0b717f2d34c3be3e1f298726ce38e335294665832c97795f145edc0d93bcb499"
     },
     {
       "name": "TorrServe MatriX",
@@ -126,7 +107,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/TorrServe MatriX MatriX.143.Client.apk",
       "sha256": "4b577862df6de9b22c387fd2737818a8373b9efa354c91badcc6b78f73f7c7a9",
-      "sizeBytes": 11955914
+      "sizeBytes": 11955914,
+      "signerSha256": "6cbc24b62d7c7cbcdfa534a863b3612e8abde28af6ab41a566a3a9b879293f4e"
     },
     {
       "name": "VK Видео",
@@ -136,7 +118,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/VK Видео 2.116.apk",
       "sha256": "8a658e36e51a0aa7c71bc2f860f45fca13e3a9eaefc72c8e04d107c533b1cbee",
-      "sizeBytes": 64002523
+      "sizeBytes": 64002523,
+      "signerSha256": "057d974412032066f1b5edb1fdb550f71854189815c806b27c4d486fb4f1ef32"
     },
     {
       "name": "VoKino",
@@ -146,7 +129,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/VoKino 1.1.1-rustore.apk",
       "sha256": "ba2a0c8fd987e53c931d9114512c07f69012fad5d18f17f07d3fac2f1fad74bd",
-      "sizeBytes": 16729803
+      "sizeBytes": 16729803,
+      "signerSha256": "1b8de43b2bf2ce73836bf0155cb048bd4ef716d9bea0631cda5b1d06833e65df"
     },
     {
       "name": "Zona",
@@ -156,7 +140,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/Zona 3.0.72.apk",
       "sha256": "7211fd940afedc0500823f3290782ee554e459193df99ec86a84874118d132fa",
-      "sizeBytes": 29666165
+      "sizeBytes": 29666165,
+      "signerSha256": "e85c1eb707f4c7987e51886a8b8eee159c4256aabfcca179626cd04aac4aa989"
     },
     {
       "name": "Лайт HD TV",
@@ -166,7 +151,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/Лайт HD TV 7.0.0.apk",
       "sha256": "a3892b58fae6ebe0d74f68e6d248f20c1ca92cd5768762b75b5649ddd099b8f5",
-      "sizeBytes": 41181040
+      "sizeBytes": 41181040,
+      "signerSha256": "5c2fbfc0cb89fc06ed7c4d85ca57e352c8d7de0f1635a582a0565a5c23072a21"
     },
     {
       "name": "Медиаплеер Виму",
@@ -176,7 +162,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/Медиаплеер Виму 10.77.apk",
       "sha256": "8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa",
-      "sizeBytes": 57554930
+      "sizeBytes": 57554930,
+      "signerSha256": "532f2ed32068eff138bdc2d3c0bfcad4bcfe5125df0f4fb7d26d9da4b62e7ff9"
     },
     {
       "name": "Файловый менеджер +",
@@ -186,7 +173,8 @@
       "apkUrl": "https://disk.yandex.ru/d/-LpAmZavtLNwTA",
       "apkPath": "/Файловый менеджер + 3.7.8.apk",
       "sha256": "febfb452c424c72a43d62037da03d14fa531573e466db196e24ac8e4de2d0358",
-      "sizeBytes": 24237018
+      "sizeBytes": 24237018,
+      "signerSha256": "0cfb4663831a0fb8d6973aad44e221a8ba78f7f684bd0b17d3b44bec82316484"
     }
   ]
 }

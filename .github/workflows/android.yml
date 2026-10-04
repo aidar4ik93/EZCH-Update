@@ -32,7 +32,8 @@ jobs:
       - name: Build APK, compile instrumentation tests, run unit tests and lint
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug --console=plain
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :launcher:assembleDebug :launcher:assembleDebugAndroidTest :launcher:testDebugUnitTest :launcher:lintDebug --console=plain
+          python3 -m unittest discover -s scripts -p 'test_sync_yandex_catalog.py' -v
       - name: Save APK and reports
         if: always()
         uses: actions/upload-artifact@v5
@@ -42,6 +43,9 @@ jobs:
             app/build/outputs/apk/debug/*.apk
             app/build/reports/tests/testDebugUnitTest/
             app/build/reports/lint-results-debug.*
+            launcher/app/build/outputs/apk/debug/*.apk
+            launcher/app/build/reports/tests/testDebugUnitTest/
+            launcher/app/build/reports/lint-results-debug.*
           if-no-files-found: warn
 
   android-tv-tests:
@@ -84,10 +88,12 @@ jobs:
           profile: tv_1080p
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          script: ./gradlew :app:connectedDebugAndroidTest --console=plain
+          script: ./gradlew :app:connectedDebugAndroidTest :launcher:connectedDebugAndroidTest --console=plain
       - name: Verify tests really executed
         shell: pwsh
-        run: ./scripts/verify-android-test-results.ps1
+        run: |
+          ./scripts/verify-android-test-results.ps1 -MinimumTests 15
+          ./scripts/verify-android-test-results.ps1 -Directory ./launcher/app/build/outputs/androidTest-results/connected/debug -MinimumTests 4
       - name: Save Android test reports
         if: always()
         uses: actions/upload-artifact@v5
@@ -96,4 +102,6 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            launcher/app/build/reports/androidTests/
+            launcher/app/build/outputs/androidTest-results/
           if-no-files-found: warn

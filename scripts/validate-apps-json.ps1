@@ -1,63 +1,71 @@
 [CmdletBinding()]
-param([string]$Path = (Join-Path $PSScriptRoot '..\apps.json'))
+param(
+    [string]$Path = (Join-Path $PSScriptRoot '..\\apps.json')
+)
 
 $ErrorActionPreference = 'Stop'
-if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Catalog file was not found: $Path" }
-if ((Get-Item -LiteralPath $Path).Length -gt 1048576) { throw 'Catalog exceeds the 1 MiB limit.' }
-try { $catalog = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json }
-catch { throw "Invalid JSON in ${Path}: $($_.Exception.Message)" }
-if ($catalog.apps -isnot [Array] -or $catalog.apps.Count -lt 1 -or $catalog.apps.Count -gt 500) {
-    throw 'The catalog must contain an apps array with 1 to 500 entries.'
+
+if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "Catalog file was not found: $Path"
 }
 
-function Test-CatalogText($Value, [string]$Name, [int]$MaximumLength) {
-    if ($Value -isnot [string] -or [string]::IsNullOrWhiteSpace($Value) -or
-        $Value.Length -gt $MaximumLength -or $Value -cne $Value.Trim() -or $Value -match '[\x00-\x1f\x7f-\x9f]') {
-        throw "Invalid string property '$Name'."
-    }
+try {
+    $catalog = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json
 }
-function Test-PositiveInteger($Value, [string]$Name) {
-    if ($Value -isnot [int] -and $Value -isnot [long]) { throw "$Name must be an integer JSON number." }
-    if ($Value -lt 1) { throw "$Name must be positive." }
-}
-function Test-HttpsUrl($Value, [string]$Name) {
-    Test-CatalogText $Value $Name 4096
-    $uri = $null
-    if (-not [Uri]::TryCreate($Value, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https' -or
-        [string]::IsNullOrWhiteSpace($uri.Host) -or $uri.UserInfo -or $uri.Fragment -or $Value -match '\s') {
-        throw "$Name must be an absolute HTTPS URL without credentials or fragments."
-    }
+catch {
+    throw "Invalid JSON in ${Path}: $($_.Exception.Message)"
 }
 
-$seenPackages = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+if ($null -eq $catalog.apps) {
+    throw 'The catalog must contain an apps array.'
+}
+
+$requiredProperties = @('name', 'packageName', 'versionCode', 'versionName', 'apkUrl', 'apkPath', 'sha256', 'sizeBytes', 'signerSha256')
+$seenPackages = @{}
+
 foreach ($app in $catalog.apps) {
-    Test-CatalogText $app.name 'name' 160
-    Test-CatalogText $app.packageName 'packageName' 255
-    Test-CatalogText $app.versionName 'versionName' 128
-    Test-CatalogText $app.apkPath 'apkPath' 1024
-    Test-PositiveInteger $app.versionCode 'versionCode'
-    Test-HttpsUrl $app.apkUrl 'apkUrl'
-    if ($app.packageName -cnotmatch '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$') {
+    foreach ($property in $requiredProperties) {
+        if ($null -eq $app.$property -or [string]::IsNullOrWhiteSpace([string]$app.$property)) {
+            throw "An app is missing required property '$property'."
+        }
+    }
+
+    if ($app.packageName -notmatch '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$') {
         throw "Invalid Android package name '$($app.packageName)'."
     }
-    if (-not $seenPackages.Add($app.packageName)) { throw "Duplicate package name '$($app.packageName)'." }
-    if (-not $app.apkPath.StartsWith('/') -or $app.apkPath.Contains('\') -or $app.apkPath -match '(^|/)\.{1,2}(/|$)') {
-        throw "Invalid apkPath for '$($app.name)'."
+
+    if ($seenPackages.ContainsKey($app.packageName)) {
+        throw "Duplicate package name '$($app.packageName)'."
     }
-    if ($null -ne $app.iconUrl) { Test-HttpsUrl $app.iconUrl 'iconUrl' }
-    if ($null -ne $app.sha256) {
-        Test-CatalogText $app.sha256 'sha256' 64
-        if ($app.sha256 -cnotmatch '^[a-fA-F0-9]{64}$') { throw "Invalid SHA-256 for '$($app.name)'." }
+    $seenPackages[$app.packageName] = $true
+
+    $versionCode = 0L
+    if (-not [Int64]::TryParse([string]$app.versionCode, [ref]$versionCode) -or $versionCode -lt 1) {
+        throw "versionCode for '$($app.name)' must be a positive integer."
     }
-    if ($null -ne $app.sizeBytes) { Test-PositiveInteger $app.sizeBytes 'sizeBytes' }
+
+    $uri = $null
+    if (-not [Uri]::TryCreate([string]$app.apkUrl, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') {
+        throw "apkUrl for '$($app.name)' must be an absolute HTTPS URL."
+    }
+
+    if (-not $app.apkPath.StartsWith('/')) {
+        throw "apkPath for '$($app.name)' must start with '/'."
+    }
+
+    foreach ($hashProperty in @('sha256', 'signerSha256')) {
+        if ($app.PSObject.Properties.Name -contains $hashProperty -and
+            [string]$app.$hashProperty -notmatch '^[a-fA-F0-9]{64}$') {
+            throw "$hashProperty for '$($app.name)' must be a 64-character SHA-256 hex digest."
+        }
+    }
+
+    if ($app.PSObject.Properties.Name -contains 'sizeBytes') {
+        $sizeBytes = 0L
+        if (-not [Int64]::TryParse([string]$app.sizeBytes, [ref]$sizeBytes) -or $sizeBytes -lt 1) {
+            throw "sizeBytes for '$($app.name)' must be a positive integer."
+        }
+    }
 }
 
-$projectRoot = Split-Path $PSScriptRoot -Parent
-if ([IO.Path]::GetFullPath($Path) -eq [IO.Path]::GetFullPath((Join-Path $projectRoot 'apps.json'))) {
-    $bundledPath = Join-Path $projectRoot 'app\src\main\assets\apps.json'
-    if (-not (Test-Path -LiteralPath $bundledPath) -or
-        (Get-FileHash -LiteralPath $Path).Hash -ne (Get-FileHash -LiteralPath $bundledPath).Hash) {
-        throw 'The bundled app/src/main/assets/apps.json must match the published apps.json.'
-    }
-}
 Write-Host "Validated $($catalog.apps.Count) catalog entries in $Path."

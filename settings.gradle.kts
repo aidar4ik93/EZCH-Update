@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "EZCH Update"
 include(":app")
+include(":launcher")
+project(":launcher").projectDir = file("launcher/app")

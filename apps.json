@@ -3,12 +3,23 @@
     {
       "name": "EZCH Update",
       "packageName": "com.example.ezchupdate",
-      "versionCode": 14,
-      "versionName": "1.4",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.4.0/EZCH_Update_1.4.apk",
-      "apkPath": "/EZCH_Update_1.4.apk",
-      "sha256": "cb8cb7567b5baa2ee35d6ed573ac4022485ea92aaf02c626647b103484c85b13",
-      "sizeBytes": 22644394,
+      "versionCode": 19,
+      "versionName": "1.5.1",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.5.1-usb-r19/EZCH_Update_1.5.1.apk",
+      "apkPath": "/EZCH_Update_1.5.1.apk",
+      "sha256": "6bb55e1496480bc46d9714afda4f73695a17a2611affd781876f20707402a946",
+      "sizeBytes": 8678949,
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
+    },
+    {
+      "name": "EZCH Launcher USB",
+      "packageName": "com.example.homeezch.usb",
+      "versionCode": 13,
+      "versionName": "0.13-USB",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.5.1-usb-r19/EZCH_Launcher_0.13_USB.apk",
+      "apkPath": "/EZCH_Launcher_0.13_USB.apk",
+      "sha256": "3c718536bd967f46cd7731d861a04a42ba367f8f576bb7167fca6bf3357a4b85",
+      "sizeBytes": 9990754,
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },
     {

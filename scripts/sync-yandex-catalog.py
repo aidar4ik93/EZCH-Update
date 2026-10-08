@@ -226,7 +226,7 @@ class SdkInspector:
         signers = re.findall(r"^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]{64})\s*$", signature, flags=re.MULTILINE)
         if len(signers) != 1:
             # The client schema pins one current signer; do not silently discard co-signers.
-            raise SyncError(f"APK must have exactly one verified current signer: {package}")
+            raise SyncError(f"APK must have exactly one verified current signer: {package}; SDK={self.apksigner_jar}; verifier={signature[-1200:]}")
         return {"name": labels[0], "packageName": package, "versionCode": version_code,
                 "versionName": attributes.get("versionName") or str(version_code), "signerSha256": signers[0].lower()}
 
@@ -355,6 +355,9 @@ def sdk_tools(sdk_root=None):
     root = Path(sdk_root or os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME") or "")
     directories = list((root / "build-tools").glob("*")) if root.is_dir() else []
     directories.sort(key=lambda path: tuple(int(part) for part in re.findall(r"\d+", path.name)), reverse=True)
+    # The workflow explicitly installs 36.0.0. Do not silently switch to a
+    # preinstalled preview SDK with a different apksigner output format.
+    directories.sort(key=lambda path: path.name != "36.0.0")
     extension = ".exe" if os.name == "nt" else ""
     for directory in directories:
         aapt2, jar = directory / ("aapt2" + extension), directory / "lib" / "apksigner.jar"

@@ -2,7 +2,7 @@
 param(
     [ValidateSet('app','launcher')][string]$Module = 'app',
     [string]$SigningProject = (Join-Path $env:USERPROFILE 'AndroidStudioProjects\EZCHUpdate'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.6.apk'),
+    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.6.1.apk'),
     [string]$ExpectedCertificate = 'ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602',
     [string]$AndroidSdk = (Join-Path $env:LOCALAPPDATA 'Android\Sdk'),
     [string]$JavaHome = (Join-Path $env:ProgramFiles 'Android\Android Studio\jbr')
@@ -115,8 +115,8 @@ try {
     $badgingText = ($badgingOutput | ForEach-Object { $_.ToString() }) -join "`n"
     $packageMatch = [regex]::Match($badgingText, "(?m)^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'")
     $expectedPackage = if ($Module -eq 'launcher') { 'com.example.homeezch.usb' } else { 'com.example.ezchupdate.tvtest' }
-    $expectedCode = if ($Module -eq 'launcher') { '18' } else { '21' }
-    $expectedVersion = if ($Module -eq 'launcher') { '0.18-USB' } else { '1.6' }
+    $expectedCode = if ($Module -eq 'launcher') { '18' } else { '22' }
+    $expectedVersion = if ($Module -eq 'launcher') { '0.18-USB' } else { '1.6.1' }
     if (-not $packageMatch.Success -or $packageMatch.Groups[1].Value -ne $expectedPackage) {
         throw 'The release APK has an unexpected application ID.'
     }

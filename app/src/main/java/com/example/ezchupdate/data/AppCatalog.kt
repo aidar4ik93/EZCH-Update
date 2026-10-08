@@ -28,7 +28,7 @@ data class InstalledApp(
 
 class CatalogRepository(
     private val context: Context? = null,
-    private val catalogUrl: String = "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/refs/heads/main/apps.json",
+    private val catalogUrl: String = "https://api.github.com/repos/aidar4ik93/EZCH-Update/contents/apps.json?ref=main",
     private val sourceReader: ((String) -> String)? = null
 ) {
     var offline: Boolean = false
@@ -127,7 +127,11 @@ class CatalogRepository(
             check(connection.responseCode in 200..299) {
                 "Не удалось загрузить каталог: HTTP ${connection.responseCode}"
             }
-            connection.inputStream.bufferedReader().use { it.readText() }
+            val source = connection.inputStream.bufferedReader().use { it.readText() }
+            val document = JSONObject(source)
+            if (document.optString("encoding") == "base64" && document.has("content")) {
+                String(android.util.Base64.decode(document.getString("content"), android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } else source
         } finally {
             connection.disconnect()
         }

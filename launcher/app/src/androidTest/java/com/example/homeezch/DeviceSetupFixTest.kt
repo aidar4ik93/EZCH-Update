@@ -62,9 +62,17 @@ class DeviceSetupFixTest {
         assertEquals(context.packageName, device.currentPackageName)
     }
     @Test fun bluetoothHasUsableTvSettingsRoute() {
+        val platformPackages = listOf(
+            Intent("com.google.android.intent.action.CONNECT_INPUT"),
+            Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
+            Intent("android.settings.CONNECTED_DEVICE_SETTINGS"),
+            Intent("android.bluetooth.devicepicker.action.LAUNCH"),
+            Intent(Settings.ACTION_SETTINGS)
+        ).mapNotNull { context.packageManager.resolveActivity(it, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName }
+            .toSet() + setOf("com.android.tv.settings", "com.google.android.tv.settings")
         instrumentation.runOnMainSync { assertTrue(SettingsRouter.bluetooth(context)) }
         val end = SystemClock.elapsedRealtime()+20_000
-        while (device.currentPackageName?.contains("settings") != true && SystemClock.elapsedRealtime()<end) SystemClock.sleep(200)
-        assertTrue(device.currentPackageName.orEmpty().contains("settings"))
+        while (device.currentPackageName !in platformPackages && SystemClock.elapsedRealtime()<end) SystemClock.sleep(200)
+        assertTrue("Expected a platform Bluetooth/settings handler, got ${device.currentPackageName}", device.currentPackageName in platformPackages)
     }
 }

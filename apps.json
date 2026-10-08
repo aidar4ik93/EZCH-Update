@@ -3,11 +3,11 @@
     {
       "name": "EZCH Update",
       "packageName": "com.example.ezchupdate.tvtest",
-      "versionCode": 21,
-      "versionName": "1.6",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.18-usb/EZCH_Update_1.6.apk",
-      "apkPath": "/EZCH_Update_1.6.apk",
-      "sha256": "86423946c22bb042fac7c0e649a464c37a42fee01568fe8c6915bccba8e7c9c9",
+      "versionCode": 22,
+      "versionName": "1.6.1",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.18-usb/EZCH_Update_1.6.1.apk",
+      "apkPath": "/EZCH_Update_1.6.1.apk",
+      "sha256": "b416588ee65b2e628083bfe9e6466f67c3daa11c0f3f37e84cb452e626f57932",
       "sizeBytes": 8678949,
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },
@@ -18,7 +18,7 @@
       "versionName": "0.18-USB",
       "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.18-usb/EZCH_Launcher_0.18_USB.apk",
       "apkPath": "/EZCH_Launcher_0.18_USB.apk",
-      "sha256": "1ae1bedc668b6d1f66430fdab9c9760186d7a35875f5b8a279c071b496d0b8e4",
+      "sha256": "ce8dd62a070937512518c048c6204b93c06835724a0cd33bef5bf1628761837a",
       "sizeBytes": 11203282,
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },

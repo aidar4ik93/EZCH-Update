@@ -92,7 +92,7 @@ jobs:
       - name: Verify tests really executed
         shell: pwsh
         run: |
-          ./scripts/verify-android-test-results.ps1 -MinimumTests 19
+          ./scripts/verify-android-test-results.ps1 -MinimumTests 20
           ./scripts/verify-android-test-results.ps1 -Directory ./launcher/app/build/outputs/androidTest-results/connected/debug -MinimumTests 23
       - name: Save Android test reports
         if: always()

@@ -34,6 +34,25 @@ import org.json.JSONObject
 
 @RunWith(AndroidJUnit4::class)
 class InstallerDeviceTest {
+    @Test fun previousYandexCacheFallsBackToGoogleDriveCatalog() {
+        val isolated = object : ContextWrapper(context) {
+            override fun getFilesDir(): File = File(context.cacheDir, "previous-source-test").apply { mkdirs() }
+        }
+        val old = JSONObject(context.assets.open("apps.json").bufferedReader().use { it.readText() })
+        val items = old.getJSONArray("apps")
+        for (i in 0 until items.length()) {
+            val app = items.getJSONObject(i)
+            if (app.getString("apkUrl").contains("drive.usercontent.google.com")) app.put("apkUrl", "https://disk.yandex.ru/d/old-source")
+        }
+        val cached = File(isolated.filesDir, "catalog.json").apply { writeText(old.toString()) }
+        try {
+            val repository = CatalogRepository(isolated, sourceReader = { throw java.io.IOException("offline") })
+            val apps = repository.load()
+            assertTrue(repository.offline)
+            assertTrue(apps.any { it.apkUrl.contains("drive.usercontent.google.com") })
+            assertTrue(apps.none { it.apkUrl.contains("yandex") })
+        } finally { cached.delete() }
+    }
     @Test fun firstOfflineLaunchUsesBundledCatalog() {
         val isolated = object : ContextWrapper(context) {
             override fun getFilesDir(): File = File(context.cacheDir, "offline-catalog-test").apply { mkdirs() }

@@ -28,7 +28,7 @@ data class InstalledApp(
 
 class CatalogRepository(
     private val context: Context? = null,
-    private val catalogUrl: String = "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/apps.json",
+    private val catalogUrl: String = "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/refs/heads/main/apps.json",
     private val sourceReader: ((String) -> String)? = null
 ) {
     var offline: Boolean = false
@@ -104,6 +104,7 @@ class CatalogRepository(
                 "Некорректная версия приложения: ${app.name}"
             }
             val uri = URI(app.apkUrl)
+            require(uri.host?.lowercase() !in setOf("disk.yandex.ru", "disk.yandex.com", "yadi.sk")) { "Источник APK перенесён на Google Drive" }
             require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.userInfo == null) {
                 "Некорректная ссылка на APK: ${app.name}"
             }
@@ -120,7 +121,8 @@ class CatalogRepository(
     }
 
     private fun readText(url: String): String {
-        val connection = HttpsConnection.open(url)
+        val freshUrl = url + (if (url.contains("?")) "&" else "?") + "refresh=" + System.currentTimeMillis()
+        val connection = HttpsConnection.open(freshUrl)
         return try {
             check(connection.responseCode in 200..299) {
                 "Не удалось загрузить каталог: HTTP ${connection.responseCode}"

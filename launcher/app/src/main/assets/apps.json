@@ -1,13 +1,24 @@
 {
   "apps": [
     {
+      "name": "EZCH Update",
+      "packageName": "com.example.ezchupdate.tvtest",
+      "versionCode": 22,
+      "versionName": "1.6.1",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.18-usb/EZCH_Update_1.6.1.apk",
+      "apkPath": "/EZCH_Update_1.6.1.apk",
+      "sha256": "b416588ee65b2e628083bfe9e6466f67c3daa11c0f3f37e84cb452e626f57932",
+      "sizeBytes": 8678949,
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
+    },
+    {
       "name": "EZCH Launcher USB",
       "packageName": "com.example.homeezch.usb",
-      "versionCode": 16,
-      "versionName": "0.16-USB",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.16-usb/EZCH_Launcher_0.16_USB.apk",
-      "apkPath": "/EZCH_Launcher_0.16_USB.apk",
-      "sha256": "a0b1ea1d9769ce9dbf6638f45505a78acd99f13995d0bb8524fc0f06143e26b3",
+      "versionCode": 18,
+      "versionName": "0.18-USB",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.18-usb/EZCH_Launcher_0.18_USB.apk",
+      "apkPath": "/EZCH_Launcher_0.18_USB.apk",
+      "sha256": "ce8dd62a070937512518c048c6204b93c06835724a0cd33bef5bf1628761837a",
       "sizeBytes": 11203282,
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },

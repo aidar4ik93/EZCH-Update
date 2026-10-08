@@ -23,6 +23,17 @@
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
     },
     {
+      "name": "AmneziaVPN",
+      "packageName": "org.amnezia.vpn",
+      "versionCode": 2164,
+      "versionName": "5.0.3.0",
+      "signerSha256": "735ded9e687ab6b4ebc7b1f93b57f1f07310282167d160e684cfafaaff0d3e94",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1Z7BnKQei6hMpGYkV41tiIK_bvVoHX4CA&export=download&confirm=t",
+      "apkPath": "/AmneziaVPN_5.0.3.0_android11+_armeabi-v7a.apk",
+      "sha256": "4647fe6c9ca2549bb02fd4000dd1834023b6967121fb0d32ec9f35f3dfba791a",
+      "sizeBytes": 71355657
+    },
+    {
       "name": "ByeByeDPI",
       "packageName": "io.github.romanvht.byedpi",
       "versionCode": 1820,

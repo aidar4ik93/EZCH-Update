@@ -9,13 +9,11 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import com.example.homeezch.data.HttpsConnection
+import com.example.homeezch.data.GoogleDriveDownload
 import com.example.homeezch.data.RemoteApp
 import com.example.homeezch.data.QuarantinedApks
 import com.example.homeezch.data.versionCodeCompat
-import org.json.JSONObject
 import java.io.File
-import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -74,7 +72,7 @@ class AppInstaller {
     private fun downloadApk(context: Context, app: RemoteApp, onProgress: (Long, Long) -> Unit): File {
         val directory = File(context.cacheDir, "downloads").apply { mkdirs() }
         val apkFile = File(directory, "${app.packageName}-${app.versionCode}.apk")
-        val connection = HttpsConnection.open(resolveDownloadUrl(app), 60_000)
+        val connection = GoogleDriveDownload.open(app.apkUrl)
         try {
             val total = connection.contentLengthLong
             var downloaded = 0L
@@ -88,6 +86,7 @@ class AppInstaller {
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         downloaded += count
+                        check(app.sizeBytes == null || downloaded <= app.sizeBytes) { "Размер загрузки превышает каталог: ${app.name}" }
                         val now = System.currentTimeMillis()
                         if (now - lastUpdate >= 150) {
                             onProgress(downloaded, total)
@@ -105,29 +104,6 @@ class AppInstaller {
             throw error
         } finally {
             connection.disconnect()
-        }
-    }
-
-    private fun resolveDownloadUrl(app: RemoteApp): String {
-        val host = Uri.parse(app.apkUrl).host?.lowercase()
-        if (host !in setOf("disk.yandex.ru", "disk.yandex.com", "yadi.sk")) return app.apkUrl
-        val key = URLEncoder.encode(app.apkUrl, "UTF-8")
-        val connection = HttpsConnection.open("https://cloud-api.yandex.net/v1/disk/public/resources?public_key=$key")
-        val metadata = try {
-            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-        } finally {
-            connection.disconnect()
-        }
-        val path = if (metadata.optString("type") == "dir") {
-            "&path=${URLEncoder.encode(app.apkPath, "UTF-8")}"
-        } else ""
-        val download = HttpsConnection.open(
-            "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$key$path"
-        )
-        return try {
-            JSONObject(download.inputStream.bufferedReader().use { it.readText() }).getString("href")
-        } finally {
-            download.disconnect()
         }
     }
 

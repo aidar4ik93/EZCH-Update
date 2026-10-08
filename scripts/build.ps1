@@ -13,7 +13,7 @@ if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
 }
 if ($Release) {
     & (Join-Path $PSScriptRoot 'build-release.ps1')
-    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory 'dist/EZCH_Launcher_0.16_USB.apk')
+    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory 'dist/EZCH_Launcher_0.17_USB.apk')
     return
 }
 Push-Location -LiteralPath $projectDirectory

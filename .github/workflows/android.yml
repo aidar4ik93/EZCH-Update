@@ -33,7 +33,7 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :launcher:assembleDebug :launcher:assembleDebugAndroidTest :launcher:testDebugUnitTest :launcher:lintDebug --console=plain
-          python3 -m unittest discover -s scripts -p 'test_sync_yandex_catalog.py' -v
+          python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
       - name: Save APK and reports
         if: always()
         uses: actions/upload-artifact@v5
@@ -92,7 +92,7 @@ jobs:
       - name: Verify tests really executed
         shell: pwsh
         run: |
-          ./scripts/verify-android-test-results.ps1 -MinimumTests 15
+          ./scripts/verify-android-test-results.ps1 -MinimumTests 19
           ./scripts/verify-android-test-results.ps1 -Directory ./launcher/app/build/outputs/androidTest-results/connected/debug -MinimumTests 23
       - name: Save Android test reports
         if: always()

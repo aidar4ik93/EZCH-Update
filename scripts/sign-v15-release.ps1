@@ -2,7 +2,7 @@
 param(
     [string]$PasswordFile,
     [string]$Keystore = (Join-Path $env:USERPROFILE 'EZCH_Signing_Keys\ezch-update-1.5.jks'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.5.1_r19.apk')
+    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.5.2_r20.apk')
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -20,8 +20,8 @@ try {
         if (!(Test-Path -LiteralPath $requiredFile -PathType Leaf)) { throw "Missing local file: $requiredFile" }
     }
     $metadata = (& "$buildTools\aapt2.exe" dump badging $unsigned) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or $metadata -notmatch "package: name='com.example.ezchupdate' versionCode='19' versionName='1.5.1'") {
-        throw 'Build revision 18 before signing.'
+    if ($LASTEXITCODE -ne 0 -or $metadata -notmatch "package: name='com.example.ezchupdate' versionCode='20' versionName='1.5.2'") {
+        throw 'Build Update 1.5.2 revision 20 before signing.'
     }
     if ($PasswordFile) {
         $password = [IO.File]::ReadAllText([IO.Path]::GetFullPath($PasswordFile)).TrimEnd("`r", "`n")

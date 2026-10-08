@@ -326,7 +326,7 @@ def preserve_project_releases(apps, output):
     previous = json.loads(path.read_text(encoding="utf-8-sig"))["apps"]
     releases = {}
     for item in previous:
-        if item.get("packageName") not in {"com.example.ezchupdate", "com.example.homeezch.usb"}:
+        if item.get("packageName") not in {"com.example.ezchupdate", "com.example.ezchupdate.tvtest", "com.example.homeezch.usb"}:
             continue
         if not item.get("apkUrl", "").startswith("https://github.com/aidar4ik93/EZCH-Update/releases/download/"):
             continue

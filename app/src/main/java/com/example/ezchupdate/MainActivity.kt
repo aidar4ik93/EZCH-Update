@@ -87,6 +87,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 launch {
+                    viewModel.uiState.collect { viewModel.openPreparedLauncher(this@MainActivity) }
+                }
+                launch {
                     while (isActive) {
                         delay(5 * 60 * 1000L)
                         viewModel.refreshCatalogIfIdle()
@@ -117,11 +120,20 @@ class MainActivity : ComponentActivity() {
         setContent {
             EzchTheme {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                LaunchedEffect(state.isLoading) {
+                    if (!state.isLoading) {
+                        intent.getStringExtra("selected_package")?.let { selected ->
+                            intent.removeExtra("selected_package")
+                            if (selected !in state.selectedPackages) viewModel.toggleSelection(selected)
+                        }
+                    }
+                }
                 CatalogScreen(
                     state = state,
                     onReload = viewModel::reload,
                     onToggle = viewModel::toggleSelection,
                     onInstall = { viewModel.installSelected(this) },
+                    onLauncher = { viewModel.setupLauncher(this) },
                     onCancel = viewModel::cancelInstallation
                 )
             }
@@ -161,6 +173,7 @@ private fun CatalogScreen(
     onReload: () -> Unit,
     onToggle: (String) -> Unit,
     onInstall: () -> Unit,
+    onLauncher: () -> Unit,
     onCancel: () -> Unit
 ) {
     val busy = state.installing != null || state.permissionRequested
@@ -251,6 +264,16 @@ private fun CatalogScreen(
 
             Spacer(Modifier.height(16.dp))
             if (!busy) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("EZCH Launcher • ваш рабочий стол", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Стеклянные карточки, живые обои и магазин. Установка и открытие одной кнопкой.", color = MutedText, fontSize = 12.sp)
+                    }
+                    val launcher = state.rows.firstOrNull { it.app.packageName == "com.example.homeezch.usb" }
+                    TvActionButton(if (launcher?.installed == null) "Установить лаунчер" else if (launcher.updateAvailable) "Обновить лаунчер" else "Открыть лаунчер",
+                        enabled = canSelect && launcher != null, symbol = "⌂", onClick = onLauncher)
+                }
+                Spacer(Modifier.height(8.dp))
                 Text("Выберите приложения пультом и нажмите «Установить выбранные». Загрузка и настройка установки выполняются здесь.",
                     color = MutedText, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
@@ -378,7 +401,7 @@ private fun AppCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (focused) 1.025f else 1f,
+        targetValue = if (focused) 1.04f else 1f,
         animationSpec = tween(140),
         label = "cardScale"
     )
@@ -404,7 +427,7 @@ private fun AppCard(
             .height(86.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .onFocusChanged { focused = it.isFocused }
-            .shadow(if (focused) 8.dp else 0.dp, shape, clip = false,
+            .shadow(if (focused) 14.dp else 0.dp, shape, clip = false,
                 ambientColor = FocusCyan, spotColor = FocusCyan)
             .background(Brush.linearGradient(listOf(backgroundColor, Color(0xFF050B14))), shape)
             .border(if (focused || selected) 2.dp else 1.dp, borderColor, shape),

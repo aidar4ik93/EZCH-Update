@@ -53,6 +53,39 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     private var operationId = 0
     private var loadRunning = false
     private val stopDownload = AtomicBoolean(false)
+    private val setupPrefs = appContext.getSharedPreferences("launcher_setup", Context.MODE_PRIVATE)
+
+    fun setupLauncher(context: Context) {
+        if (isBusy() || _uiState.value.isLoading) return
+        val row = _uiState.value.rows.firstOrNull { it.app.packageName == "com.example.homeezch.usb" }
+        if (row == null) {
+            _uiState.value = _uiState.value.copy(message = "Лаунчер отсутствует в каталоге. Обновите каталог.")
+            return
+        }
+        if (!row.updateAvailable) {
+            openLauncher(context)
+            return
+        }
+        setupPrefs.edit().putBoolean("open_after_install", true).apply()
+        _uiState.value = _uiState.value.copy(selectedPackages = setOf(row.app.packageName))
+        installSelected(context)
+    }
+
+    private fun openLauncher(context: Context): Boolean = try {
+        context.startActivity(Intent(Intent.ACTION_MAIN).setComponent(
+            android.content.ComponentName("com.example.homeezch.usb", "com.example.homeezch.MainActivity")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        setupPrefs.edit().remove("open_after_install").apply()
+        true
+    } catch (error: Exception) {
+        _uiState.value = _uiState.value.copy(message = "Не удалось открыть лаунчер: ${error.message.orEmpty()}")
+        false
+    }
+
+    fun openPreparedLauncher(context: Context) {
+        if (!isBusy() && setupPrefs.getBoolean("open_after_install", false) &&
+            installedApp("com.example.homeezch.usb") != null) openLauncher(context)
+    }
 
     private val _uiState = MutableStateFlow(
         CatalogUiState(
@@ -174,6 +207,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
         refreshInstalledRows()
         refreshCatalogIfIdle()
+        openPreparedLauncher(context)
     }
 
     private fun prepareQueue(waitingForPermission: Boolean): Boolean {
@@ -209,6 +243,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun stopWaitingForPermission(message: String) {
+        setupPrefs.edit().remove("open_after_install").apply()
         saveQueue(InstallQueueState(message = message))
         _uiState.value = _uiState.value.copy(
             installing = null,
@@ -366,6 +401,9 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
 
     private fun completeCurrent(success: Boolean, message: String) {
         val current = queue.current ?: return
+        if (!success && current.packageName == "com.example.homeezch.usb") {
+            setupPrefs.edit().remove("open_after_install").apply()
+        }
         operationId++
         needsRecovery = false
         val failures = if (success) queue.failures else queue.failures + message

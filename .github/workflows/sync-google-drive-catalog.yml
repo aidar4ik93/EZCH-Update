@@ -60,5 +60,11 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json
           git commit -m 'Update Google Drive application catalog'
-          git pull --rebase origin "$DEFAULT_BRANCH"
+          # Never replay an older verified snapshot over a release published
+          # while the complete folder scan was running. The next run rescans.
+          git fetch origin "$DEFAULT_BRANCH"
+          if [ "$(git rev-parse HEAD^)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
+            echo 'Repository changed during verification; preserving the newer catalog'
+            exit 0
+          fi
           git push origin "HEAD:$DEFAULT_BRANCH"

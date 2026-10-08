@@ -38,4 +38,10 @@ class PublicDriveTests(unittest.TestCase):
         self.assertEqual(drive.download_url("1234567890abc"), "https://drive.usercontent.google.com/download?id=1234567890abc&export=download&confirm=t")
         with self.assertRaises(drive.SyncError): drive.download_url("bad&id=other")
 
+    def test_full_tv_release_replaces_archived_companion_only(self):
+        apps = [{"packageName": name} for name in ["com.example.ezchupdate", "com.example.ezchupdate.tvtest", "com.example.homeezch.usb", "example.player"]]
+        self.assertEqual([app["packageName"] for app in drive.active_project_catalog(apps)],
+            ["com.example.ezchupdate.tvtest", "com.example.homeezch.usb", "example.player"])
+        self.assertEqual(drive.active_project_catalog(apps[:1]), apps[:1])
+
 if __name__ == "__main__": unittest.main()

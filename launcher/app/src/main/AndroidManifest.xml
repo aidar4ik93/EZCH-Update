@@ -23,6 +23,7 @@
 
     <!-- Доступ к списку запускаемых приложений -->
     <queries>
+        <package android:name="com.example.ezchupdate.tvtest" />
         <package android:name="com.alphainventor.filemanager" />
         <package android:name="com.android.tv.settings" />
         <package android:name="com.google.android.tv.settings" />

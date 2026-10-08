@@ -117,6 +117,11 @@ class PublicDrive:
             path.unlink(missing_ok=True)
             raise
 
+def active_project_catalog(apps):
+    if any(app["packageName"] == "com.example.ezchupdate.tvtest" for app in apps):
+        return [app for app in apps if app["packageName"] != "com.example.ezchupdate"]
+    return apps
+
 def sync(api, cache, output, sdk, keep_project_releases=True):
     cache = Path(cache); cache.mkdir(parents=True, exist_ok=True)
     items = api.list_files()
@@ -153,6 +158,9 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
     apps = sorted(packages.values(), key=lambda app: (app["name"].casefold(), app["packageName"]))
     if keep_project_releases:
         apps = common.preserve_project_releases(apps, output)
+    # Once the TV edition is published, the old companion must not reappear
+    # merely because an archived APK remains in the source folder.
+    apps = active_project_catalog(apps)
     changed = common.write_catalog(output, apps)
     print(f"Google Drive catalog {'updated' if changed else 'unchanged'}: {len(apps)} entries from {len(items)} APKs")
     return apps

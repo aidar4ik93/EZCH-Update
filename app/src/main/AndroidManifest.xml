@@ -20,7 +20,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
-        <package android:name="com.example.ezchupdate" />
+        <package android:name="com.example.ezchupdate.tvtest" />
+        <package android:name="com.example.homeezch.usb" />
         <package android:name="io.github.romanvht.byedpi" />
         <package android:name="ru.tiardev.kinotrend" />
         <package android:name="io.lift.app" />

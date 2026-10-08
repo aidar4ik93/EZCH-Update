@@ -1,17 +1,6 @@
 {
   "apps": [
     {
-      "name": "EZCH Update",
-      "packageName": "com.example.ezchupdate",
-      "versionCode": 19,
-      "versionName": "1.5.1",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.5.1-usb-r19/EZCH_Update_1.5.1.apk",
-      "apkPath": "/EZCH_Update_1.5.1.apk",
-      "sha256": "6bb55e1496480bc46d9714afda4f73695a17a2611affd781876f20707402a946",
-      "sizeBytes": 8678949,
-      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
-    },
-    {
       "name": "EZCH Launcher USB",
       "packageName": "com.example.homeezch.usb",
       "versionCode": 16,

@@ -10,6 +10,15 @@ internal fun updaterPackages(ownPackage: String): List<String> =
     else listOf("com.example.ezchupdate")
 
 internal fun openUpdater(context: Context, selectedPackage: String? = null): Boolean {
+    val companion = Intent("com.example.ezchupdate.OPEN_CATALOG")
+        .setComponent(ComponentName("com.example.ezchupdate.tvtest", "com.example.ezchupdate.MainActivity"))
+    selectedPackage?.let { companion.putExtra("selected_package", it) }
+    try {
+        context.startActivity(companion)
+        return true
+    } catch (_: android.content.ActivityNotFoundException) {
+    } catch (_: SecurityException) {
+    }
     val embedded = Intent(context, UpdaterActivity::class.java)
     selectedPackage?.let { embedded.putExtra("selected_package", it) }
     return runCatching { context.startActivity(embedded); true }.getOrDefault(false)

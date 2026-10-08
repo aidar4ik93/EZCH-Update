@@ -8,11 +8,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.ezchupdate"
+        applicationId = "com.example.ezchupdate.tvtest"
         minSdk = 26
         targetSdk = 37
-        versionCode = 20
-        versionName = "1.5.2"
+        versionCode = 21
+        versionName = "1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

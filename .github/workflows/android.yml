@@ -93,7 +93,7 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/verify-android-test-results.ps1 -MinimumTests 15
-          ./scripts/verify-android-test-results.ps1 -Directory ./launcher/app/build/outputs/androidTest-results/connected/debug -MinimumTests 21
+          ./scripts/verify-android-test-results.ps1 -Directory ./launcher/app/build/outputs/androidTest-results/connected/debug -MinimumTests 23
       - name: Save Android test reports
         if: always()
         uses: actions/upload-artifact@v5

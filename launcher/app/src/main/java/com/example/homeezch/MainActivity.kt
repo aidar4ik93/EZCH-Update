@@ -229,7 +229,9 @@ internal fun AppTile(
 
     var focused by remember { mutableStateOf(false) }
 
-    val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(170), label = "appFocus")
+    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(210), label = "appFocus")
+    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "appHalo")
+    val iconScale by animateFloatAsState(if (focused) 1.08f else 1f, tween(210), label = "iconFocus")
     val image = rememberAppArtwork(app.component)
     val shape = DesktopShape
 
@@ -238,13 +240,14 @@ internal fun AppTile(
             .width(width)
             .height(94.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .focusHalo(glow)
             .clip(shape)
             .background(
-                if (focused) Color(0xFF22466D) else if (app.component == null) Color(0xFF07385F) else panel, shape
+                if (app.component == null) Color(0xFF07385F) else panel, shape
             )
             .border(
-                if (focused) 4.dp else 1.dp,
-                if (focused) blue else Color(0xFF34455B),
+                if (focused) 1.5.dp else 1.dp,
+                if (focused) Ice.copy(alpha = .8f) else Color(0xFF34455B),
                 shape
             )
             .onFocusChanged {
@@ -260,7 +263,7 @@ internal fun AppTile(
                 bitmap = image,
                 contentDescription = app.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().height(62.dp).padding(top = 9.dp)
+                modifier = Modifier.fillMaxWidth().height(62.dp).padding(top = 9.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
             )
 
         } else {

@@ -21,6 +21,17 @@ internal fun GlassIcon(kind: String, modifier: Modifier = Modifier, color: Color
         fun box(x: Float, y: Float, width: Float, height: Float) =
             drawRect(color, Offset(w*x, h*y), Size(w*width, h*height), style = Stroke(stroke))
         when (kind) {
+            "Домой" -> {
+                line(.1f,.45f,.5f,.12f); line(.5f,.12f,.9f,.45f)
+                line(.22f,.36f,.22f,.88f); line(.78f,.36f,.78f,.88f); line(.22f,.88f,.78f,.88f)
+                box(.41f,.6f,.18f,.28f)
+            }
+            "Папка" -> { box(.1f,.32f,.8f,.54f); line(.1f,.32f,.1f,.16f); line(.1f,.16f,.4f,.16f); line(.4f,.16f,.53f,.32f) }
+            "Строки" -> { for(y in listOf(.22f,.5f,.78f)) { box(.1f,y-.08f,.14f,.16f); line(.36f,y,.9f,y) } }
+            "Обои" -> {
+                box(.08f,.12f,.84f,.76f); drawCircle(color,w*.08f,Offset(w*.7f,h*.32f),style=Stroke(stroke))
+                line(.1f,.75f,.37f,.46f); line(.37f,.46f,.58f,.7f); line(.58f,.7f,.75f,.53f); line(.75f,.53f,.9f,.75f)
+            }
             "Bluetooth" -> {
                 line(.46f,.12f,.46f,.88f); line(.46f,.12f,.72f,.34f)
                 line(.72f,.34f,.23f,.72f); line(.23f,.28f,.72f,.67f); line(.72f,.67f,.46f,.88f)

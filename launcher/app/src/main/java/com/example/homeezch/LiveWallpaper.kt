@@ -60,12 +60,21 @@ internal object WallpaperSettings {
             error = null
         }.onFailure { error = "Видео недоступно. Выберите файл во внутренней памяти или на USB." }
     }
-    TextButton(onClick = { save(choice.copy(mode = WallpaperMode.entries[(choice.mode.ordinal + 1) % 3])) }) {
-        Text("Режим: " + when (choice.mode) { WallpaperMode.AUTO -> "Авто"; WallpaperMode.PREMIUM -> "Premium"; WallpaperMode.LITE -> "Lite · чёрный фон" })
+    val modeName = when (choice.mode) { WallpaperMode.AUTO -> "Авто"; WallpaperMode.PREMIUM -> "Premium"; WallpaperMode.LITE -> "Lite" }
+    val modeHelp = when (choice.mode) {
+        WallpaperMode.AUTO -> "Подбирает оформление по ресурсам устройства; бережёт память и энергию. Нажмите для смены режима."
+        WallpaperMode.PREMIUM -> "Космическое оформление с поддержкой живого фона и видео. Нажмите для смены режима."
+        WallpaperMode.LITE -> "Чёрный фон и минимум нагрузки. Нажмите для смены режима."
     }
-    TextButton(onClick = { save(choice.copy(moving = true, video = null)) }) { Text("Живые обои · Космос") }
-    TextButton(onClick = { picker.launch(arrayOf("video/*")) }) { Text("Выбрать видеообои / USB") }
-    TextButton(onClick = { save(choice.copy(moving = false, video = null)) }) { Text("Вернуть исходный фон") }
+    SettingsItem("Экран", "Режим оформления", modeHelp, modeName) {
+        save(choice.copy(mode = WallpaperMode.entries[(choice.mode.ordinal + 1) % 3]))
+    }
+    SettingsItem("Обои", "Живые обои · Космос", "Плавное движение исходного космического фона без дополнительных файлов.",
+        if (choice.moving && choice.video == null) "Выбраны" else null) { save(choice.copy(moving = true, video = null)) }
+    SettingsItem("Обои", "Выбрать видеообои / USB", "Ваше видео повторяется без звука и останавливается при выходе с рабочего стола.",
+        if (choice.moving && choice.video != null) "Выбраны" else null) { picker.launch(arrayOf("video/*")) }
+    SettingsItem("Обои", "Вернуть исходный фон", "Неподвижные обои из оригинального оформления.",
+        if (!choice.moving) "Выбран" else null) { save(choice.copy(moving = false, video = null)) }
     error?.let { Text(it) }
 }
 

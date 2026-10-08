@@ -199,7 +199,7 @@ internal fun HomeScreen(
                         }
                         val addRequester = remember(row.id) { requesters.getOrPut("all-apps-${row.id}") { FocusRequester() } }
                         LazyRow(modifier = rowNavigation(rowApps.map(::keyOf) + "all-apps-${row.id}"), state = listState, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(horizontal = 7.dp, vertical = 10.dp)) {
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 18.dp)) {
                             items(rowApps, key = ::keyOf) { app ->
                                 val card = CardMenu(keyOf(app), app.name, false)
                                 AppTile(app, cardWidth, input(card) { onLaunch(app) }.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = tween(160)), onFocus = { onCardFocus(card.key) },
@@ -277,26 +277,39 @@ internal fun HomeScreen(
         }, confirmButton = { TextButton(onClick = { menu = null; request(card.key) }) { Text("Закрыть") } })
     }
     if (launcherSettings) AlertDialog(onDismissRequest = { launcherSettings = false },
-        title = { Text("Настройки EZCH") }, text = {
-            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-                TextButton(onClick = { HomeRole.request(context) }) { Text("Назначить EZCH главным экраном") }
-                TextButton(onClick = { SettingsRouter.accessibility(context) }) { Text("Служба EZCH — кнопка Home") }
-                Text("Включается по желанию в специальных возможностях. Назначение HOME — отдельная кнопка выше.", fontSize = 12.sp)
-                TextButton(onClick = { SettingsRouter.settings(context) }) { Text("Системные настройки") }
+        modifier = Modifier.widthIn(max = 700.dp).fillMaxWidth(.92f),
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        title = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GlassIcon("Настройки", color = Ice)
+            Column { Text("Настройки EZCH", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                Text("Рабочий стол, оформление и управление пультом", fontSize = 12.sp, color = Muted) }
+        } }, text = {
+            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp)) {
+                SettingsSection("Главный экран и пульт")
+                SettingsItem("Домой", "Главный экран", "Открывать EZCH при нажатии Home.",
+                    if (HomeRole.isHome(context)) "Назначен" else "Выбрать") { HomeRole.request(context) }
+                val service = android.content.ComponentName(context, HomeButtonService::class.java)
+                val helperEnabled = runCatching { (context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager)
+                    .getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                    .any { android.content.ComponentName.unflattenFromString(it.id) == service } }.getOrDefault(false)
+                SettingsItem("Домой", "Кнопка Home", "Дополнительная служба: короткое нажатие возвращает домой, длинное открывает меню.",
+                    if (helperEnabled) "Включена" else "По желанию") { SettingsRouter.accessibility(context) }
+                SettingsItem("Настройки", "Настройки телевизора", "Сеть, Bluetooth, звук, экран и другие параметры Android.") { SettingsRouter.settings(context) }
+                SettingsSection("Оформление и обои")
                 WallpaperControls { onPremiumChange(true) }
-                TextButton(onClick = { context.startActivity(Intent(context, FileBrowserActivity::class.java)) }) { Text("Файловый менеджер / USB") }
-                TextButton(onClick = { launcherSettings = false; allApps = true }) { Text("Все приложения / восстановить скрытые") }
-                TextButton(onClick = { launcherSettings = false; rowTitle = ""; addRow = true }) { Text("Добавить строку приложений") }
+                SettingsSection("Приложения и рабочий стол")
+                SettingsItem("Папка", "Файловый менеджер / USB", "Открыть накопитель, скопировать файлы или установить APK.") { context.startActivity(Intent(context, FileBrowserActivity::class.java)) }
+                SettingsItem("Строки", "Все приложения / восстановить скрытые", "Вернуть скрытые значки на рабочий стол.", "Скрыто: ${saved.hiddenApps.size}") { launcherSettings = false; allApps = true }
+                SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { launcherSettings = false; rowTitle = ""; addRow = true }
                 saved.rows.forEachIndexed { index, row ->
-                    Text(row.title, color = Color(0xFFD7B477))
+                    SettingsSection("Строка: ${row.title}")
                     Row {
                         TextButton(enabled = !saving && index > 0, onClick = { commit(saved.moveRow(row.id, -1)) }) { Text("Выше") }
                         TextButton(enabled = !saving && index < saved.rows.lastIndex, onClick = { commit(saved.moveRow(row.id, 1)) }) { Text("Ниже") }
                         TextButton(enabled = !saving && saved.rows.size > 1, onClick = { commit(saved.removeRow(row.id)) }) { Text("Убрать") }
                     }
                 }
-                if (saved.hiddenSources.isNotEmpty()) TextButton(enabled = !saving,
-                    onClick = { commit(saved.copy(hiddenSources = emptyList())) }) { Text("Восстановить скрытые источники") }
+                if (saved.hiddenSources.isNotEmpty()) SettingsItem("Экран", "Восстановить скрытые источники", "Вернуть скрытые карточки разъёмов.", "Скрыто: ${saved.hiddenSources.size}", enabled = !saving) { commit(saved.copy(hiddenSources = emptyList())) }
             }
         }, confirmButton = { TextButton(onClick = { launcherSettings = false }) { Text("Закрыть") } })
     if (addRow) AlertDialog(onDismissRequest = { if (!saving) addRow = false }, title = { Text("Новая строка") },

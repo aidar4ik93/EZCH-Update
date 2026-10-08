@@ -1,60 +1,41 @@
 package com.example.homeezch
-
-import android.content.Context
-import androidx.documentfile.provider.DocumentFile
-import java.security.MessageDigest
-
+import java.io.File
 internal object FileOperations {
-    fun checkedName(name: String): String {
-        require(name.isNotBlank() && name.length <= 200 && name != "." && name != ".." &&
-            name.none { it == '/' || it == '\\' || it.code < 32 }) { "Недопустимое имя файла" }
-        return name
+    fun child(parent: File, name: String): File {
+        require(name.isNotBlank() && name !in listOf(".","..") && '/' !in name && '\\' !in name) { "Недопустимое имя" }
+        return File(parent,name).also { require(it.canonicalFile.parentFile == parent.canonicalFile) { "Недопустимый путь" } }
     }
-    /** Copy only regular files. Existing content is never overwritten. */
-    fun copy(context: Context, source: DocumentFile, folder: DocumentFile): DocumentFile {
-        require(source.isFile && folder.isDirectory && source.exists()) { "Выберите файл и папку назначения" }
-        val name = checkedName(source.name ?: error("Файл без имени"))
-        require(folder.findFile(name) == null) { "В этой папке уже есть файл $name" }
-        val temporaryName = "ezch-copy-${java.util.UUID.randomUUID()}"
-        val target = folder.createFile(source.type ?: "application/octet-stream", temporaryName) ?: error("Нет доступа для записи")
+    fun validateTree(source: File) {
+        require(source.walkTopDown().none { java.nio.file.Files.isSymbolicLink(it.toPath()) }) { "Операции с символическими ссылками не поддерживаются" }
+    }
+    fun delete(source: File) { validateTree(source); check(source.deleteRecursively()) { "Не удалось удалить" } }
+    fun rename(source: File, name: String) {
+        val target = child(requireNotNull(source.parentFile),name)
+        require(!target.exists()) { "Файл с таким именем уже существует" }
+        check(source.renameTo(target)) { "Не удалось переименовать" }
+    }
+    fun copy(source: File, directory: File, move: Boolean) {
+        require(source.exists() && directory.isDirectory) { "Источник или папка недоступны" }
+        validateTree(source)
+        val src=source.canonicalFile;val target=child(directory,source.name).canonicalFile
+        require(src != target && !target.toPath().startsWith(src.toPath())) { "Нельзя копировать папку в себя" }
+        require(!target.exists()) { "Файл с таким именем уже существует" }
         try {
-            val expected = MessageDigest.getInstance("SHA-256")
-            var size = 0L
-            val input = context.contentResolver.openInputStream(source.uri) ?: error("Не удалось открыть файл")
-            input.use {
-                val output = context.contentResolver.openOutputStream(target.uri, "w") ?: error("Не удалось создать файл")
-                output.use { out ->
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        val count = it.read(buffer); if (count < 0) break
-                        size += count
-                        check(size <= 1024L * 1024 * 1024) { "Файл превышает 1 ГБ" }
-                        out.write(buffer, 0, count); expected.update(buffer, 0, count)
-                    }
-                }
+            if (src.isDirectory) check(src.copyRecursively(target,false)) { "Не удалось скопировать папку" }
+            else src.copyTo(target,false)
+        } catch(e: Exception) { target.deleteRecursively();throw e }
+        // Verify every copied byte before a move is allowed to remove the original.
+        try {
+            src.walkTopDown().filter { it.isFile }.forEach { original ->
+                val copied = if (src.isDirectory) File(target, original.relativeTo(src).path) else target
+                check(original.length() == copied.length() && digest(original).contentEquals(digest(copied))) { "Проверка копии не пройдена" }
             }
-            val actual = MessageDigest.getInstance("SHA-256")
-            var copied = 0L
-            context.contentResolver.openInputStream(target.uri)?.use { inputCheck ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) { val count = inputCheck.read(buffer); if (count < 0) break; copied += count; actual.update(buffer, 0, count) }
-            } ?: error("Не удалось проверить копию")
-            check(copied == size && actual.digest().contentEquals(expected.digest())) { "Копия записана не полностью" }
-            check(folder.findFile(name) == null) { "В этой папке уже есть файл $name" }
-            check(target.renameTo(name) && target.name == name) { "Не удалось сохранить исходное имя файла" }
-            return target
-        } catch (failure: Exception) {
-            target.delete()
-            throw failure
-        }
+        } catch (e: Exception) { target.deleteRecursively(); throw e }
+        if(move) check(src.deleteRecursively()) { "Копия создана, но оригинал удалить не удалось" }
     }
-    fun move(context: Context, source: DocumentFile, folder: DocumentFile) {
-        copy(context, source, folder)
-        check(source.delete()) { "Копия готова; исходный файл удалить не удалось" }
-    }
-    fun rename(source: DocumentFile, name: String) {
-        val safe = checkedName(name)
-        require(source.parentFile?.findFile(safe)?.let { it.uri != source.uri } != true) { "Такое имя уже существует" }
-        check(source.renameTo(safe)) { "Не удалось переименовать файл" }
+    private fun digest(file: File): ByteArray {
+        val hash = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input -> val buffer = ByteArray(65536); while (true) { val count = input.read(buffer); if (count < 0) break; hash.update(buffer, 0, count) } }
+        return hash.digest()
     }
 }

@@ -82,6 +82,7 @@ class UpdaterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        immersiveDesktop()
 
         // Android confirmation is launched only by the resumed foreground Activity.
         lifecycleScope.launch {

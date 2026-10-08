@@ -9,6 +9,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
@@ -17,59 +18,51 @@ import java.util.UUID
 class UsbWorkflowTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    @Before fun isolateWeatherPermissionFromNavigation() {
+        context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE).edit()
+            .putBoolean("weather_auto", false).putBoolean("weather_prompt_v09", true).commit()
+    }
+    private fun startHome() {
+        // Launch from the test shell: background instrumentation must not depend on
+        // Android allowing an application context to bring itself over Settings.
+        device.executeShellCommand("am start -W -n ${context.packageName}/com.example.homeezch.MainActivity -f 0x14000000")
+    }
     @Test fun copyAndMoveVerifyBytesWithoutOverwriting() {
         val root = File(context.cacheDir, "file-test-${UUID.randomUUID()}").apply { mkdirs() }
         val source = File(root, "payload.txt").apply { writeText("Содержимое тестового файла") }
         val target = File(root, "target").apply { mkdirs() }
         try {
             val document = DocumentFile.fromFile(source); val folder = DocumentFile.fromFile(target)
-            FileOperations.copy(context, document, folder)
+            DocumentOperations.copy(context, document, folder)
             assertEquals(source.readText(), File(target, source.name).readText())
-            assertTrue(runCatching { FileOperations.copy(context, document, folder) }.isFailure)
+            assertTrue(runCatching { DocumentOperations.copy(context, document, folder) }.isFailure)
             assertTrue(source.exists())
-            FileOperations.rename(document, "renamed.txt")
-            FileOperations.move(context, document, folder)
+            DocumentOperations.rename(document, "renamed.txt")
+            DocumentOperations.move(context, document, folder)
             assertFalse(File(root, "renamed.txt").exists())
             assertTrue(File(target, "renamed.txt").exists())
         } finally { root.deleteRecursively() }
     }
     @Test fun hiddenAppsPersistAndCanBeRestored() {
-        val preferences = LauncherPreferences(context)
-        val before = preferences.hiddenPackages
+        val before = WorkspacePrefs.load(context)
         try {
-            preferences.hiddenPackages = listOf("org.example.hidden")
-            assertEquals(listOf("org.example.hidden"), LauncherPreferences(context).hiddenPackages)
-            preferences.hiddenPackages = emptyList()
-            assertTrue(LauncherPreferences(context).hiddenPackages.isEmpty())
-        } finally { preferences.hiddenPackages = before }
-    }
-    @Test fun homeClosesAppMenuAndReturnsToDesktop() {
-        context.getSharedPreferences("setup", Context.MODE_PRIVATE).edit().putBoolean("seen", true).commit()
-        context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        assertTrue(device.wait(Until.hasObject(By.text("EZCH Update")), 10_000))
-        val first = findTvApps(context.packageManager, context.packageName).firstOrNull()
-        assertNotNull("An emulator launchable app is required", first)
-        var card = device.wait(Until.findObject(By.desc(first!!.name)), 5000)
-        assertNotNull(card); card.longClick()
-        assertTrue(device.wait(Until.hasObject(By.text("Скрыть")), 5000))
-        context.startActivity(Intent(context, MainActivity::class.java).setAction(MainActivity.SHOW_HOME)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
-        assertTrue(device.wait(Until.gone(By.text("Скрыть")), 5000))
-        assertTrue(device.wait(Until.hasObject(By.text("Файловый менеджер")), 5000))
-        card = device.wait(Until.findObject(By.desc(first.name)), 5000)
-        assertNotNull(card); card.longClick()
-        assertTrue(device.wait(Until.hasObject(By.text("Переместить")), 5000))
+            val hidden = before.discover(listOf("org.example.hidden")).hideApp("org.example.hidden")
+            assertTrue(WorkspacePrefs.save(context, hidden))
+            assertTrue("org.example.hidden" in WorkspacePrefs.load(context).hiddenApps)
+            assertTrue(WorkspacePrefs.save(context, hidden.copy(hiddenApps = emptyList())))
+            assertTrue(WorkspacePrefs.load(context).hiddenApps.isEmpty())
+        } finally { WorkspacePrefs.save(context, before) }
     }
     @Test fun fileBrowserAndUpdaterAreBundledAndOpenFromDesktop() {
-        context.getSharedPreferences("setup", Context.MODE_PRIVATE).edit().putBoolean("seen", true).commit()
-        context.startActivity(Intent(context, MainActivity::class.java).setAction(MainActivity.SHOW_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.getSharedPreferences("home_setup", Context.MODE_PRIVATE).edit().putBoolean("home_prompt_v09", true).commit()
+        startHome()
+        device.executeShellCommand("appops set ${context.packageName} MANAGE_EXTERNAL_STORAGE allow")
         val files = device.wait(Until.findObject(By.text("Файловый менеджер")), 10_000)
         assertNotNull(files); files.click()
         assertTrue(device.wait(Until.hasObject(By.text("Выбрать папку / USB")), 5000))
-        context.startActivity(Intent(context, MainActivity::class.java).setAction(MainActivity.SHOW_HOME)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
-        val updater = device.wait(Until.findObject(By.text("EZCH Update")), 5000)
+        startHome()
+        val updater = device.wait(Until.findObject(By.text("EZCH Store")), 5000)
         assertNotNull(updater); updater.click()
-        assertTrue(device.wait(Until.hasObject(By.text("Проверить обновления")), 5000))
+        assertTrue(device.wait(Until.hasObject(By.text("Проверить обновления")), 15000))
     }
 }

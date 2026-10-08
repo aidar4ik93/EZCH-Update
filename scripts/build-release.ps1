@@ -115,8 +115,8 @@ try {
     $badgingText = ($badgingOutput | ForEach-Object { $_.ToString() }) -join "`n"
     $packageMatch = [regex]::Match($badgingText, "(?m)^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'")
     $expectedPackage = if ($Module -eq 'launcher') { 'com.example.homeezch.usb' } else { 'com.example.ezchupdate' }
-    $expectedCode = if ($Module -eq 'launcher') { '13' } else { '19' }
-    $expectedVersion = if ($Module -eq 'launcher') { '0.13-USB' } else { '1.5.1' }
+    $expectedCode = if ($Module -eq 'launcher') { '15' } else { '19' }
+    $expectedVersion = if ($Module -eq 'launcher') { '0.15-USB' } else { '1.5.1' }
     if (-not $packageMatch.Success -or $packageMatch.Groups[1].Value -ne $expectedPackage) {
         throw 'The release APK has an unexpected application ID.'
     }

@@ -65,7 +65,7 @@ internal fun GlassSourceCard(source: TvSourceEntry, recent: Boolean, onClick: ()
     }
 }
 
-@Composable private fun GlassPortGlyph(kind: TvSourceKind, accent: Color, glow: Float, modifier: Modifier) {
+@Composable internal fun GlassPortGlyph(kind: TvSourceKind, accent: Color, glow: Float, modifier: Modifier) {
     Canvas(modifier) {
         val w = size.width; val h = size.height
         val light = accent.copy(alpha = .72f + glow * .28f)

@@ -1,21 +1,7 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="320dp"
-    android:height="180dp"
-    android:viewportWidth="320"
-    android:viewportHeight="180">
-    <path
-        android:fillColor="#08111B"
-        android:pathData="M0,0h320v180h-320z" />
-    <path
-        android:fillColor="#122D3D"
-        android:pathData="M0,122L164,0h156v180h-320z" />
-    <path
-        android:fillColor="#80CBC4"
-        android:pathData="M35,35h76v76h-76z" />
-    <path
-        android:fillColor="#08111B"
-        android:pathData="M50,51h46v10h-46zM50,68h31v10h-31zM50,85h39v10h-39z" />
-    <path
-        android:fillColor="#B39DDB"
-        android:pathData="M137,60h136v15h-136zM137,87h102v15h-102zM137,114h120v12h-120z" />
-</vector>
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape><solid android:color="#000000"/><size android:width="320dp" android:height="180dp"/></shape></item>
+    <item android:width="180dp" android:height="180dp" android:gravity="center">
+        <bitmap android:src="@drawable/ezch_launcher_icon" android:gravity="fill" android:filter="true"/>
+    </item>
+</layer-list>

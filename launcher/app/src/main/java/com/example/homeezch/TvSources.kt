@@ -1,20 +1,11 @@
 package com.example.homeezch
 
 import android.content.Context
-import android.content.Intent
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
-import android.hardware.usb.UsbManager
-import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.os.Environment
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import androidx.core.content.ContextCompat
 
 internal enum class TvSourceKind { TV, HDMI, AV, USB }
 
@@ -23,8 +14,8 @@ internal data class TvSourceEntry(
     val label: String,
     val hint: String,
     val kind: TvSourceKind,
-    val connected: Boolean? = null,
-    val inputId: String? = null
+    val connected: Boolean = false,
+    val detail: String? = null
 )
 
 internal data class TvSourcesSnapshot(
@@ -32,150 +23,104 @@ internal data class TvSourcesSnapshot(
     val usbVolumes: List<StorageVolume>
 )
 
-/** Only reported inputs and mounted removable volumes are discovered here. */
 internal fun scanTvSources(context: Context): TvSourcesSnapshot {
-    val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
-    val inputs = runCatching { manager?.tvInputList.orEmpty() }
-        .getOrDefault(emptyList())
+    val entries = mutableListOf<TvSourceEntry>()
+
+    val manager =
+        context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+
+    val inputs: List<TvInputInfo> = runCatching {
+        manager?.tvInputList.orEmpty()
+    }.getOrDefault(emptyList())
+
+    if (inputs.any { it.type == TvInputInfo.TYPE_TUNER }) {
+        entries += TvSourceEntry(
+            inputs.first { it.type == TvInputInfo.TYPE_TUNER }.id, "ТВ", "ТВ-источник, объявленный системой",
+            TvSourceKind.TV,
+            detail = "Тюнер доступен"
+        )
+    }
+
+    // CEC children describe attached devices, not extra physical HDMI ports.
+    inputs.filter { it.type == TvInputInfo.TYPE_HDMI && it.parentId == null }
         .distinctBy { it.id }
-        .filterNot { runCatching { it.isHidden(context) }.getOrDefault(false) }
-        .sortedWith(compareBy<TvInputInfo> { sourceKind(it.type)?.ordinal ?: Int.MAX_VALUE }
-            .thenBy { it.id })
+        .sortedBy { it.id }
+        .forEachIndexed { index, input ->
+            val systemLabel = runCatching {
+                input.loadLabel(context).toString()
+            }.getOrDefault("")
 
-    val entries = inputs.mapNotNull { input ->
-        val kind = sourceKind(input.type) ?: return@mapNotNull null
-        val state = runCatching { manager?.getInputState(input.id) }.getOrNull()
-        val connected = sourceConnectedState(state)
-        val label = runCatching { input.loadCustomLabel(context)?.toString() }
-            .getOrNull().orEmpty().trim().ifEmpty {
-                runCatching { input.loadLabel(context)?.toString() }
-                    .getOrNull().orEmpty().trim()
-            }.ifEmpty {
-                when (kind) {
-                    TvSourceKind.TV -> "ТВ"
-                    TvSourceKind.HDMI -> "HDMI"
-                    TvSourceKind.AV -> "AV"
-                    TvSourceKind.USB -> "USB / носитель"
-                }
-            }
-        val hint = when {
-            state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY ->
-                "Подключено · режим ожидания"
-            connected == true && kind == TvSourceKind.TV -> "ТВ-источник доступен"
-            connected == true -> "Подключено"
-            connected == false -> "Не подключено"
-            else -> "Состояние недоступно"
+            entries += TvSourceEntry(
+                input.id,
+                if (systemLabel.contains("HDMI", true)) systemLabel
+                else "HDMI ${index + 1}",
+                "Обнаруженный системой HDMI-вход",
+                TvSourceKind.HDMI,
+                connected = runCatching {
+                    manager?.getInputState(input.id) in listOf(TvInputManager.INPUT_STATE_CONNECTED, TvInputManager.INPUT_STATE_CONNECTED_STANDBY)
+                }.getOrDefault(false),
+                detail = runCatching {
+                    if (manager?.getInputState(input.id) == TvInputManager.INPUT_STATE_CONNECTED)
+                        "Устройство обнаружено" else when (manager?.getInputState(input.id)) {
+                            TvInputManager.INPUT_STATE_CONNECTED_STANDBY -> "Устройство в ожидании"
+                            TvInputManager.INPUT_STATE_DISCONNECTED -> "Нет подключения"
+                            else -> "Состояние неизвестно"
+                        }
+                }.getOrDefault(null)
+            )
         }
-        TvSourceEntry(input.id, label, hint, kind, connected, input.id)
-    }.toMutableList()
 
-    val storage = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
-    val volumes = runCatching {
+    inputs.filter {
+        it.type == TvInputInfo.TYPE_COMPOSITE ||
+        it.type == TvInputInfo.TYPE_COMPONENT
+    }.distinctBy { it.id }.forEachIndexed { index, input ->
+        entries += TvSourceEntry(
+            input.id,
+            if (index == 0) "AV" else "AV ${index + 1}",
+            "Аналоговый видеоисточник",
+            TvSourceKind.AV,
+            connected = runCatching {
+                manager?.getInputState(input.id) in listOf(TvInputManager.INPUT_STATE_CONNECTED, TvInputManager.INPUT_STATE_CONNECTED_STANDBY)
+            }.getOrDefault(false)
+        )
+    }
+
+    val storage =
+        context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
+
+    val volumes: List<StorageVolume> = runCatching {
         storage?.storageVolumes.orEmpty().filter {
-            it.isRemovable && isMountedRemovableState(it.state)
+            it.isRemovable && (
+                it.state == Environment.MEDIA_MOUNTED ||
+                it.state == Environment.MEDIA_MOUNTED_READ_ONLY
+            )
         }
     }.getOrDefault(emptyList())
 
-    val usbDevices = runCatching { (context.getSystemService(Context.USB_SERVICE) as? UsbManager)?.deviceList?.size }.getOrNull()
-    val mounted = volumes.isNotEmpty()
-    val usbConnected = if (mounted || (usbDevices ?: 0) > 0) true else if (usbDevices != null) false else null
-    entries += TvSourceEntry("usb-group", "USB × 2",
-        when { mounted -> "Носителей: ${volumes.size}"; usbConnected == true -> "Устройство подключено";
-            usbConnected == false -> "Не подключено"; else -> "Состояние недоступно" }, TvSourceKind.USB, usbConnected)
-    // TV firmware may hide its physical inputs from third-party launchers.
-    // Reference-layout placeholders retain an explicitly unknown connection state.
-    val placeholders = manualSourceEntries(if (entries.none { it.kind == TvSourceKind.HDMI }) 3 else 0,
-        entries.none { it.kind == TvSourceKind.TV }, entries.none { it.kind == TvSourceKind.AV }, 0)
-    entries.addAll(placeholders)
-    entries.sortWith(compareBy<TvSourceEntry> { it.kind.ordinal }.thenBy { it.label })
-    return TvSourcesSnapshot(entries, volumes)
-}
-
-internal fun observeTvSources(context: Context, changed: () -> Unit): () -> Unit {
-    val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
-    val callback = object : TvInputManager.TvInputCallback() {
-        override fun onInputStateChanged(inputId: String, state: Int) = changed()
-        override fun onInputAdded(inputId: String) = changed()
-        override fun onInputRemoved(inputId: String) = changed()
-        override fun onInputUpdated(inputId: String) = changed()
+    if (volumes.isNotEmpty()) {
+        entries += TvSourceEntry(
+            "external-storage",
+            "USB / носители ×${volumes.size}",
+            "Подключённые внешние накопители; список может включать SD",
+            TvSourceKind.USB,
+            connected = true,
+            detail = if (volumes.size == 1) volumes.first().getDescription(context)
+                     else "${volumes.size} носителя"
+        )
     }
-    runCatching { manager?.registerCallback(callback, Handler(Looper.getMainLooper())) }
-    val storage = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
-    val volumeCallback = if (Build.VERSION.SDK_INT >= 30) object : StorageManager.StorageVolumeCallback() {
-        override fun onStateChanged(volume: StorageVolume) = changed()
-    } else null
-    if (Build.VERSION.SDK_INT >= 30 && volumeCallback != null) runCatching { storage?.registerStorageVolumeCallback(context.mainExecutor, volumeCallback) }
-    val receiver = object : BroadcastReceiver() { override fun onReceive(context: Context?, intent: Intent?) = changed() }
-    val media = IntentFilter().apply {
-        addAction(Intent.ACTION_MEDIA_MOUNTED); addAction(Intent.ACTION_MEDIA_UNMOUNTED)
-        addAction(Intent.ACTION_MEDIA_REMOVED); addAction(Intent.ACTION_MEDIA_BAD_REMOVAL); addDataScheme("file")
+
+    // Keep the approved port row useful on boxes whose firmware hides TV input APIs.
+    // These are manual shortcuts, never evidence that a cable is connected.
+    if (entries.none { it.kind == TvSourceKind.TV }) entries.add(0,
+        TvSourceEntry("manual-tv", "ТВ", "Выбор входа в настройках телевизора", TvSourceKind.TV, detail = "Состояние неизвестно"))
+    val hdmiCount = entries.count { it.kind == TvSourceKind.HDMI }
+    for (number in hdmiCount + 1..3) entries += TvSourceEntry("manual-hdmi-$number", "HDMI $number",
+        "Ручной выбор входа", TvSourceKind.HDMI, detail = "Состояние неизвестно")
+    if (entries.none { it.kind == TvSourceKind.AV }) entries += TvSourceEntry("manual-av", "AV", "Ручной выбор входа", TvSourceKind.AV, detail = "Состояние неизвестно")
+    if (entries.none { it.kind == TvSourceKind.USB }) {
+        val devices = runCatching { (context.getSystemService(Context.USB_SERVICE) as android.hardware.usb.UsbManager).deviceList.size }.getOrDefault(0)
+        entries += TvSourceEntry("external-storage", "USB", "Файловый менеджер", TvSourceKind.USB,
+            connected = devices > 0, detail = if (devices > 0) "Устройств: $devices" else "Нет накопителя")
     }
-    val usb = IntentFilter().apply { addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED); addAction(UsbManager.ACTION_USB_DEVICE_DETACHED) }
-    runCatching { ContextCompat.registerReceiver(context, receiver, media, ContextCompat.RECEIVER_NOT_EXPORTED) }
-    runCatching { ContextCompat.registerReceiver(context, receiver, usb, ContextCompat.RECEIVER_NOT_EXPORTED) }
-    return {
-        runCatching { manager?.unregisterCallback(callback) }
-        if (Build.VERSION.SDK_INT >= 30 && volumeCallback != null) runCatching { storage?.unregisterStorageVolumeCallback(volumeCallback) }
-        runCatching { context.unregisterReceiver(receiver) }
-    }
+    return TvSourcesSnapshot(entries.sortedBy { when (it.kind) { TvSourceKind.TV -> 0; TvSourceKind.HDMI -> 1; TvSourceKind.AV -> 2; TvSourceKind.USB -> 3 } }, volumes)
 }
-
-internal fun newlyConnected(previous: Map<String, Boolean?>?, current: List<TvSourceEntry>): Set<String> =
-    if (previous == null) emptySet() else current.filter { it.connected == true && previous[it.id] != true }.map { it.id }.toSet()
-
-private fun sourceKind(type: Int): TvSourceKind? = when (type) {
-    TvInputInfo.TYPE_TUNER -> TvSourceKind.TV
-    TvInputInfo.TYPE_HDMI -> TvSourceKind.HDMI
-    TvInputInfo.TYPE_COMPOSITE, TvInputInfo.TYPE_COMPONENT,
-    TvInputInfo.TYPE_SVIDEO, TvInputInfo.TYPE_SCART -> TvSourceKind.AV
-    else -> null
-}
-
-internal fun sourceConnectedState(state: Int?): Boolean? = when (state) {
-    TvInputManager.INPUT_STATE_CONNECTED, TvInputManager.INPUT_STATE_CONNECTED_STANDBY -> true
-    TvInputManager.INPUT_STATE_DISCONNECTED -> false
-    else -> null
-}
-
-internal fun isMountedRemovableState(state: String): Boolean =
-    state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY
-
-/** These are user-declared slots, never evidence that a device or input is connected. */
-internal fun manualSourceEntries(
-    hdmiCount: Int,
-    hasTv: Boolean,
-    hasAv: Boolean,
-    usbSlots: Int
-): List<TvSourceEntry> = buildList {
-    val hint = "Задан вручную · состояние неизвестно"
-    if (hasTv) add(TvSourceEntry("manual-tv", "ТВ", hint, TvSourceKind.TV))
-    repeat(hdmiCount.coerceIn(0, 8)) { index ->
-        add(TvSourceEntry("manual-hdmi-${index + 1}", "HDMI ${index + 1}", hint, TvSourceKind.HDMI))
-    }
-    if (hasAv) add(TvSourceEntry("manual-av", "AV", hint, TvSourceKind.AV))
-    repeat(usbSlots.coerceIn(0, 8)) { index ->
-        add(TvSourceEntry("manual-usb-${index + 1}", "USB ${index + 1}", hint, TvSourceKind.USB))
-    }
-}
-
-/** USB is handled by the UI's document picker; false lets the UI explain unavailability. */
-internal fun openTvSource(context: Context, source: TvSourceEntry): Boolean {
-    if (source.kind == TvSourceKind.USB) return false
-    val inputId = source.inputId?.takeIf { it.isNotBlank() }
-    if (inputId != null) {
-        val uri = when (source.kind) {
-            TvSourceKind.HDMI, TvSourceKind.AV -> TvContract.buildChannelUriForPassthroughInput(inputId)
-            TvSourceKind.TV -> TvContract.buildChannelsUriForInput(inputId)
-            TvSourceKind.USB -> return false
-        }
-        if (startTvActivity(context, Intent(Intent.ACTION_VIEW, uri))) return true
-    }
-    // This vendor action is not a public Settings SDK constant. Some TVs implement it.
-    return startTvActivity(context, Intent("android.settings.TV_INPUT_SETTINGS")) ||
-        startTvActivity(context, Intent(TvInputManager.ACTION_SETUP_INPUTS))
-}
-
-private fun startTvActivity(context: Context, intent: Intent): Boolean = runCatching {
-    context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    true
-}.getOrDefault(false)

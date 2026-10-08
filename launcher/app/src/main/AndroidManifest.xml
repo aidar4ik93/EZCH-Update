@@ -3,10 +3,17 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <!-- Поддержка Android TV без сенсорного экрана -->
@@ -16,6 +23,17 @@
 
     <!-- Доступ к списку запускаемых приложений -->
     <queries>
+        <package android:name="com.alphainventor.filemanager" />
+        <package android:name="com.android.tv.settings" />
+        <package android:name="com.google.android.tv.settings" />
+        <package android:name="com.example.ezchupdate" />
+        <package android:name="com.example.ezchupdate.qa" />
+        <intent><action android:name="android.settings.HOME_SETTINGS" /></intent>
+        <intent><action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" /></intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -25,54 +43,40 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <package android:name="com.example.ezchupdate" />
-        <package android:name="io.github.romanvht.byedpi" />
-        <package android:name="ru.tiardev.kinotrend" />
-        <package android:name="io.lift.app" />
-        <package android:name="ru.yourok.num" />
-        <package android:name="com.play.pandafref" />
-        <package android:name="top.rootu.prisma" />
-        <package android:name="com.spocky.projengmenu" />
-        <package android:name="ru.vk.store.tv" />
-        <package android:name="ru.rutube.app.tv" />
-        <package android:name="ru.twicker.serialtrend" />
-        <package android:name="jp.snowlife01.android.appkiller2" />
-        <package android:name="ru.yourok.torrserve" />
-        <package android:name="com.vk.tv" />
-        <package android:name="ru.vokino.web" />
-        <package android:name="mobi.zona" />
-        <package android:name="limehd.ru.lite" />
-        <package android:name="net.gtvbox.vimuhd" />
-        <package android:name="com.alphainventor.filemanager" />
     </queries>
 
     <application
         android:allowBackup="true"
+        android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@drawable/ezch_icon"
-        android:banner="@drawable/ezch_banner"
+        android:icon="@drawable/ezch_launcher_icon"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ezch_icon"
+        android:roundIcon="@drawable/ezch_launcher_icon"
         android:supportsRtl="true"
-        android:theme="@style/Theme.HomeEZCH"
-        android:usesCleartextTraffic="false">
+        android:theme="@style/Theme.HomeEZCH">
 
         <receiver android:name=".install.InstallResultReceiver" android:exported="false" />
-        <activity android:name=".UpdaterActivity" android:exported="false" />
-        <activity android:name=".FileBrowserActivity" android:exported="false" />
-        <service android:name=".HomeKeyService" android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <service android:name=".WeeklyCleanupService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
+        <activity android:name=".UpdaterActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".DocumentBrowserActivity" android:exported="false" android:screenOrientation="landscape" />
+
+        <activity android:name=".FileBrowserActivity" android:exported="false" android:screenOrientation="landscape" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+        <service android:name=".HomeButtonService" android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="@string/home_service_name">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_keys" />
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_accessibility" />
         </service>
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:screenOrientation="landscape"
             android:launchMode="singleTask"
-            android:label="@string/app_name"
+            android:screenOrientation="landscape"
+            android:exported="true"
             android:theme="@style/Theme.HomeEZCH"
             android:windowSoftInputMode="adjustResize">
 

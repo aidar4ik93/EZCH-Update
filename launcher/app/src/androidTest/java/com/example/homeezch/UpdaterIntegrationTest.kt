@@ -22,10 +22,15 @@ class UpdaterIntegrationTest {
     @Test fun storeOpensUpdaterAndBackReturnsToLauncher() {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val device=UiDevice.getInstance(instrumentation)
+        val updaterPackage = runCatching {
+            instrumentation.targetContext.packageManager.getActivityInfo(
+                android.content.ComponentName("com.example.ezchupdate.tvtest", "com.example.ezchupdate.MainActivity"), 0)
+            "com.example.ezchupdate.tvtest"
+        }.getOrDefault(instrumentation.targetContext.packageName)
         ui.onNodeWithText("EZCH Store").performClick()
         val deadline=SystemClock.elapsedRealtime()+30_000
-        while(device.currentPackageName != instrumentation.targetContext.packageName && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(500)
-        assertEquals(instrumentation.targetContext.packageName,device.currentPackageName)
+        while(device.currentPackageName != updaterPackage && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(500)
+        assertEquals(updaterPackage,device.currentPackageName)
         assertTrue(device.wait(androidx.test.uiautomator.Until.hasObject(androidx.test.uiautomator.By.text("Проверить обновления")), 15000))
         device.pressBack()
         val backDeadline=SystemClock.elapsedRealtime()+30_000

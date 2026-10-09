@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CenterPressTest {
+    @Test fun holdingWhileMovingReopensMenuInsteadOfConfirming() {
+        val p = CenterPress()
+        p.handle(23, true, 0, 1000, false, true)
+        assertEquals(CenterPress.Action.LONG_PRESS, p.handle(23, true, 1, 1500, false, true))
+        assertTrue(p.isPressed)
+        assertEquals(CenterPress.Action.NONE, p.handle(23, false, 0, 1600, false, false))
+        assertFalse(p.isPressed)
+        p.handle(23, true, 0, 2000, false, false)
+        assertEquals(CenterPress.Action.LONG_PRESS, p.handle(23, false, 0, 2600, false, false))
+    }
     private fun CenterPress.down(t: Long = 1000, repeat: Int = 0, moving: Boolean = false) = handle(23,true,repeat,t,false,moving)
     private fun CenterPress.up(t: Long = 1100, moving: Boolean = false, canceled: Boolean = false) = handle(23,false,0,t,canceled,moving)
     @Test fun shortPressLaunchesOnlyOnPairedRelease() {

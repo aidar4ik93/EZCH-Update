@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.geometry.Rect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,6 +74,7 @@ internal fun HomeScreen(
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     val sourceIds = remember(sourceSnapshot) { sourceSnapshot.entries.map { it.id } }
     val press = remember { CenterPress() }
+    val cardBounds = remember { mutableStateMapOf<String, Rect>() }
     var pendingHorizontal by remember { mutableStateOf<String?>(null) }
     val horizontalPress = remember { HorizontalPress() }
     var focusedKey by remember { mutableStateOf<String?>(null) }
@@ -83,11 +87,15 @@ internal fun HomeScreen(
         scope.launch {
             val ok = withContext(Dispatchers.IO) { runCatching { WorkspacePrefs.save(context, next) }.getOrDefault(false) }
             saving = false
-            if (ok) { saved = next; draft = next; editing = null; after() }
+            if (ok) { saved = next; draft = next; editing = null; press.reset(); after() }
             else Toast.makeText(context, "Не удалось сохранить порядок. Повторите или отмените.", Toast.LENGTH_LONG).show()
         }
     }
     fun begin(card: CardMenu) { draft = saved; editing = card; menu = null; notice = ""; press.reset(); request(card.key) }
+    fun openMenu(card: CardMenu) {
+        if (saving) return
+        editing = null; draft = saved; menu = card
+    }
     fun confirm() { val card = editing ?: return; commit(draft) { request(card.key) } }
     fun move(code: Int) {
         val card = editing ?: return
@@ -98,7 +106,7 @@ internal fun HomeScreen(
             else draft.moveApp(card.key, horizontal, vertical, byKey.keys)
         if (next != draft) { draft = next; request(card.key) }
     }
-    fun cancel() { val card = editing; draft = saved; editing = null; card?.let { request(it.key) } }
+    fun cancel() { val card = editing; draft = saved; editing = null; press.reset(); card?.let { request(it.key) } }
 
     LaunchedEffect(apps) {
         val reconciled = saved.discover(byKey.keys.toList())
@@ -149,9 +157,10 @@ internal fun HomeScreen(
 
     val shown = if (editing == null) saved else draft
     fun input(card: CardMenu, click: () -> Unit): Modifier = Modifier
+        .onGloballyPositioned { cardBounds[card.key] = it.boundsInWindow() }
         .focusRequester(requesters.getOrPut(card.key) { FocusRequester() })
         .remoteInput(moving = editing?.key == card.key, blocked = saving || (editing != null && editing?.key != card.key), press = press,
-            onClick = click, onLong = { if (editing == null) menu = card }, onMenu = { if (editing == null) menu = card },
+            onClick = click, onLong = { openMenu(card) }, onMenu = { openMenu(card) },
             onConfirm = ::confirm, onMove = ::move)
 
     fun rowNavigation(keys: List<String>): Modifier = Modifier.onPreviewKeyEvent { event ->
@@ -264,17 +273,15 @@ internal fun HomeScreen(
     }
 
     menu?.let { card ->
-        AlertDialog(onDismissRequest = { menu = null }, title = { Text(card.name) }, text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { begin(card) }) { Text("Переместить") }
-                TextButton(onClick = {
-                    menu = null
-                    commit(if (card.source) saved.hideSource(card.key) else saved.hideApp(card.key)) {
-                        saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }?.let(::request)
-                    }
-                }) { Text("Скрыть с рабочего стола") }
-            }
-        }, confirmButton = { TextButton(onClick = { menu = null; request(card.key) }) { Text("Закрыть") } })
+        CardActionPopup(card.name, card.source, cardBounds[card.key], press,
+            onDismiss = { menu = null; press.reset(); request(card.key) },
+            onMove = { begin(card) },
+            onHide = {
+                menu = null; press.reset()
+                commit(if (card.source) saved.hideSource(card.key) else saved.hideApp(card.key)) {
+                    saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }?.let(::request)
+                }
+            })
     }
     if (launcherSettings) AlertDialog(onDismissRequest = { launcherSettings = false },
         modifier = Modifier.widthIn(max = 700.dp).fillMaxWidth(.92f),

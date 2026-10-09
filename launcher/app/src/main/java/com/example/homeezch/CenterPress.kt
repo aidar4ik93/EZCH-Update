@@ -7,12 +7,13 @@ internal class CenterPress {
     private var startedAt = 0L
     private var longPressed = false
     private var editingAtDown = false
+    val isPressed: Boolean get() = pressedKey != null
     fun reset() { pressedKey = null; longPressed = false }
     fun handle(key: Int, down: Boolean, repeat: Int, time: Long, canceled: Boolean, moving: Boolean, longSignal: Boolean = false): Action {
         if (down) {
             if (repeat == 0) {
                 pressedKey = key; startedAt = time; longPressed = false; editingAtDown = moving
-            } else if (pressedKey == key && !editingAtDown && !longPressed && (longSignal || time - startedAt >= 450L)) {
+            } else if (pressedKey == key && !longPressed && (longSignal || time - startedAt >= 450L)) {
                 longPressed = true; return Action.LONG_PRESS
             }
             return Action.NONE
@@ -20,6 +21,7 @@ internal class CenterPress {
         if (pressedKey != key) return Action.NONE
         val result = when {
             canceled || longPressed -> Action.NONE
+            longSignal || time - startedAt >= 450L -> Action.LONG_PRESS
             editingAtDown && moving -> Action.CONFIRM
             !editingAtDown && moving -> Action.NONE
             !editingAtDown && (longSignal || time - startedAt >= 450L) -> Action.LONG_PRESS

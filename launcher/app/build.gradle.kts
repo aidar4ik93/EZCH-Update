@@ -9,8 +9,8 @@ android {
         applicationId = "com.example.homeezch.usb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 19
-        versionName = "0.18.1-USB"
+        versionCode = 20
+        versionName = "0.19-USB"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

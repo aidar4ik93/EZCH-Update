@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EZCH Launcher 0.12 QA</string>
-    <string name="home_service_name">EZCH Launcher 0.12 QA — кнопка Home</string>
+    <string name="app_name">EZCH Launcher</string>
+    <string name="home_service_name">EZCH Launcher — кнопка Home</string>
     <string name="home_service_description">По вашему разрешению открывает EZCH при нажатии кнопки Home, если прошивка передаёт эту кнопку службе. Содержимое экранов не читается. Это не заменяет системное назначение HOME.</string>
 </resources>

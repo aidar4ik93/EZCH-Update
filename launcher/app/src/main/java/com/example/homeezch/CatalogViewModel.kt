@@ -15,6 +15,7 @@ import com.example.homeezch.install.InstallEvents
 import com.example.homeezch.install.InstallQueueState
 import com.example.homeezch.install.InstallQueueStore
 import com.example.homeezch.install.InstallSnapshot
+import com.example.homeezch.install.InstallFailureMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -341,7 +342,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         val success = result.status == PackageInstaller.STATUS_SUCCESS
         completeCurrent(
             success,
-            if (success) "${current.name} установлен" else "${current.name}: ${result.message ?: "Android отклонил установку"}"
+            if (success) "${current.name} установлен" else "${current.name}: ${InstallFailureMessage.describe(result.status, result.message)}"
         )
         InstallEvents.consume(appContext, result.sessionId)
     }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ezchupdate.tvtest"
         minSdk = 26
         targetSdk = 37
-        versionCode = 23
-        versionName = "1.6.2"
+        versionCode = 24
+        versionName = "1.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")

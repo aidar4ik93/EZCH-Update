@@ -77,6 +77,13 @@ class CatalogRepository(
         null
     }
 
+    /** Verified local snapshot is available without waiting for the network. */
+    fun loadLocal(): List<RemoteApp>? {
+        val cached = context?.let { File(it.filesDir, "catalog.json") }
+        return runCatching { cached?.takeIf { it.isFile }?.readText()?.let(::parse) }.getOrNull()
+            ?: runCatching { context?.assets?.open("apps.json")?.bufferedReader()?.use { parse(it.readText()) } }.getOrNull()
+    }
+
     internal fun parse(source: String): List<RemoteApp> {
         val apps = JSONObject(source).getJSONArray("apps")
         val result = List(apps.length()) { index ->

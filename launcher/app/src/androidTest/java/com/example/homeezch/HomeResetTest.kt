@@ -82,4 +82,21 @@ class HomeResetTest {
         ui.onNodeWithText("Скрыть с рабочего стола").assertExists()
         ui.onAllNodesWithText("OK сохранить", substring = true).assertCountEquals(0)
     }
+
+    @Test fun thirtyMenuCyclesKeepFocusAndLeaveWorkspaceUnchanged() {
+        ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+        val prefs = ui.activity.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
+        val original = prefs.getString("workspace_v1", null)
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        repeat(30) {
+            longOk()
+            ui.onNodeWithText("Переместить приложение").assertExists()
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+            ui.onNodeWithText("Скрыть с рабочего стола").assertIsFocused()
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+            ui.waitForIdle()
+            ui.onNodeWithText("EZCH Store").assertIsFocused()
+        }
+        org.junit.Assert.assertEquals(original, prefs.getString("workspace_v1", null))
+    }
 }

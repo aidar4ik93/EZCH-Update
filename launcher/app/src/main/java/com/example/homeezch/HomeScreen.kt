@@ -74,7 +74,7 @@ internal fun HomeScreen(
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     val sourceIds = remember(sourceSnapshot) { sourceSnapshot.entries.map { it.id } }
     val press = remember { CenterPress() }
-    val cardBounds = remember { mutableStateMapOf<String, Rect>() }
+    val cardBounds = remember { mutableMapOf<String, Rect>() }
     var pendingHorizontal by remember { mutableStateOf<String?>(null) }
     val horizontalPress = remember { HorizontalPress() }
     var focusedKey by remember { mutableStateOf<String?>(null) }

@@ -43,7 +43,7 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
     Popup(popupPositionProvider = position, onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)) {
         val shape = RoundedCornerShape(18.dp)
-        Column(Modifier.width(310.dp)
+        Column(Modifier.width(280.dp)
             .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 val center = key.keyCode in listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER)
@@ -55,7 +55,7 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
                     true
                 } else center && key.action == KeyEvent.ACTION_DOWN && key.repeatCount > 0
             }
-            .background(Brush.verticalGradient(listOf(Color(0xD9233853), Color(0xD9101C30))), shape)
+            .background(Brush.verticalGradient(listOf(Color(0xC8233853), Color(0xC8101C30))), shape)
             .border(1.dp, Color(0x668DC6FF), shape).padding(12.dp)) {
             Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1,
                 modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))

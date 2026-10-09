@@ -32,6 +32,7 @@ data class CatalogUiState(
     val rows: List<AppRow> = emptyList(),
     val selectedPackages: Set<String> = emptySet(),
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val installing: RemoteApp? = null,
     val message: String? = null,
     val downloadBytes: Long = 0,
@@ -42,9 +43,10 @@ data class CatalogUiState(
     val permissionRequested: Boolean = false
 )
 
-class CatalogViewModel(application: Application) : AndroidViewModel(application) {
+class CatalogViewModel @JvmOverloads constructor(application: Application,
+    private val repository: CatalogRepository = CatalogRepository(application.applicationContext)
+) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
-    private val repository = CatalogRepository(appContext)
     private val installer = AppInstaller()
     private val queueStore = InstallQueueStore(appContext)
     private var queue = queueStore.load() ?: InstallQueueState()
@@ -52,7 +54,44 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     private var downloadRunning = false
     private var operationId = 0
     private var loadRunning = false
+    private var lastRefreshAt = 0L
     private val stopDownload = AtomicBoolean(false)
+    private val setupPrefs = appContext.getSharedPreferences("launcher_setup", Context.MODE_PRIVATE)
+
+    fun setupLauncher(context: Context) {
+        if (isBusy() || _uiState.value.isLoading) return
+        val row = _uiState.value.rows.firstOrNull { it.app.packageName == "com.example.homeezch.usb" }
+        if (row == null) {
+            _uiState.value = _uiState.value.copy(message = "Лаунчер отсутствует в каталоге. Обновите каталог.")
+            return
+        }
+        if (!row.updateAvailable) {
+            openLauncher(context)
+            return
+        }
+        setupPrefs.edit().putBoolean("open_after_install", true)
+            .putLong("target_version", row.app.versionCode).apply()
+        _uiState.value = _uiState.value.copy(selectedPackages = setOf(row.app.packageName))
+        installSelected(context)
+    }
+
+    private fun openLauncher(context: Context): Boolean = try {
+        context.startActivity(Intent(Intent.ACTION_MAIN).setComponent(
+            android.content.ComponentName("com.example.homeezch.usb", "com.example.homeezch.MainActivity")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        setupPrefs.edit().remove("open_after_install").apply()
+        true
+    } catch (error: Exception) {
+        _uiState.value = _uiState.value.copy(message = "Не удалось открыть лаунчер: ${error.message.orEmpty()}")
+        false
+    }
+
+    fun openPreparedLauncher(context: Context) {
+        if (!isBusy() && setupPrefs.getBoolean("open_after_install", false) &&
+            installedApp("com.example.homeezch.usb")?.versionCode?.let {
+                it >= setupPrefs.getLong("target_version", Long.MAX_VALUE)
+            } == true) openLauncher(context)
+    }
 
     private val _uiState = MutableStateFlow(
         CatalogUiState(
@@ -79,18 +118,27 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refreshCatalogIfIdle() {
-        if (!isBusy()) loadCatalog(clearMessage = false)
+        if (!isBusy() && android.os.SystemClock.elapsedRealtime() - lastRefreshAt >= 5 * 60 * 1000L)
+            loadCatalog(clearMessage = false)
     }
 
     private fun loadCatalog(clearMessage: Boolean) {
         if (loadRunning) return
         loadRunning = true
+        lastRefreshAt = android.os.SystemClock.elapsedRealtime()
         _uiState.value = _uiState.value.copy(
-            isLoading = true,
+            isLoading = _uiState.value.rows.isEmpty(),
+            isRefreshing = true,
             message = if (clearMessage) null else _uiState.value.message
         )
         viewModelScope.launch {
             try {
+                if (_uiState.value.rows.isEmpty()) {
+                    val local = withContext(Dispatchers.IO) {
+                        repository.loadLocal()?.map { app -> AppRow(app, installedApp(app.packageName)) }
+                    }
+                    if (!local.isNullOrEmpty()) _uiState.value = _uiState.value.copy(rows = local, isLoading = false)
+                }
                 val rows = withContext(Dispatchers.IO) {
                     repository.load().map { app -> AppRow(app, installedApp(app.packageName)) }
                 }
@@ -103,6 +151,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     selectedPackages = if (isBusy()) _uiState.value.selectedPackages
                     else _uiState.value.selectedPackages.intersect(selectable),
                     isLoading = false,
+                    isRefreshing = false,
                     message = if (repository.offline) listOfNotNull(message, cachedWarning).distinct().joinToString("\n")
                         else message
                 )
@@ -112,6 +161,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 val failure = error.message ?: "Не удалось загрузить каталог"
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
+                    isRefreshing = false,
                     message = listOfNotNull(_uiState.value.message, failure).distinct().joinToString("\n")
                 )
             } finally {
@@ -174,6 +224,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
         refreshInstalledRows()
         refreshCatalogIfIdle()
+        openPreparedLauncher(context)
     }
 
     private fun prepareQueue(waitingForPermission: Boolean): Boolean {
@@ -209,6 +260,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun stopWaitingForPermission(message: String) {
+        setupPrefs.edit().remove("open_after_install").apply()
         saveQueue(InstallQueueState(message = message))
         _uiState.value = _uiState.value.copy(
             installing = null,
@@ -366,6 +418,9 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
 
     private fun completeCurrent(success: Boolean, message: String) {
         val current = queue.current ?: return
+        if (!success && current.packageName == "com.example.homeezch.usb") {
+            setupPrefs.edit().remove("open_after_install").apply()
+        }
         operationId++
         needsRecovery = false
         val failures = if (success) queue.failures else queue.failures + message

@@ -74,6 +74,9 @@ import com.example.homeezch.install.InstallEvents
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
 import java.util.Locale
 
 class UpdaterActivity : ComponentActivity() {
@@ -188,12 +191,14 @@ private fun CatalogScreen(
                             color = Color(0xFFAEC8F3))
                     }
                     Spacer(Modifier.height(5.dp))
-                    Text("Найдено приложений: ${state.rows.size}", fontSize = 14.sp, color = MutedText)
+                    Text(if (state.isRefreshing) "Приложений: ${state.rows.size} • проверяем обновления…"
+                        else "Приложений: ${state.rows.size} • выбрано: ${state.selectedPackages.size}",
+                        fontSize = 14.sp, color = MutedText)
                 }
                 TvActionButton(
                     text = "Проверить обновления",
                     symbol = "⟳",
-                    enabled = !state.isLoading && !busy,
+                    enabled = !state.isLoading && !state.isRefreshing && !busy,
                     onClick = onReload
                 )
                 Spacer(Modifier.width(16.dp))
@@ -383,7 +388,7 @@ private fun AppCard(
         animationSpec = tween(140),
         label = "cardScale"
     )
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(16.dp)
     val borderColor = when {
         focused -> FocusCyan
         selected -> Turquoise
@@ -475,14 +480,15 @@ private fun AppCard(
 private fun AppIcon(row: AppRow) {
     val iconResource = bundledIcon(row.app.packageName)
     val context = LocalContext.current
-    val installedIcon = remember(row.app.packageName, row.installed) {
-        if (iconResource == null && row.installed != null) {
+    val installedIcon by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, row.app.packageName, row.installed) {
+        value = if (iconResource == null && row.installed != null) withContext(Dispatchers.IO) {
             runCatching {
                 context.packageManager.getApplicationIcon(row.app.packageName).toBitmap(108, 108).asImageBitmap()
             }.getOrNull()
         } else null
     }
     val modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp))
+    val bitmap = installedIcon
     when {
         iconResource != null -> Image(
             painter = painterResource(iconResource),
@@ -490,8 +496,8 @@ private fun AppIcon(row: AppRow) {
             modifier = modifier,
             contentScale = ContentScale.Fit
         )
-        installedIcon != null -> Image(
-            bitmap = installedIcon,
+        bitmap != null -> Image(
+            bitmap = bitmap,
             contentDescription = null,
             modifier = modifier,
             contentScale = ContentScale.Fit

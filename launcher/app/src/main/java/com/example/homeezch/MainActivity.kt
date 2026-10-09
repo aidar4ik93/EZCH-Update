@@ -240,7 +240,7 @@ internal fun AppTile(
             .width(width)
             .height(94.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .focusHalo(glow)
+            .focusHalo({ glow })
             .clip(shape)
             .background(
                 if (app.component == null) Color(0xFF07385F) else panel, shape

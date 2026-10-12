@@ -8,7 +8,6 @@ import android.provider.Settings
 import android.os.SystemClock
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
-import com.example.homeezch.HomeAccessibility
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -30,30 +29,10 @@ class DeviceSetupFixTest {
             assertTrue(refused.status.contains("403"))
         } finally { file.delete() }
     }
-    @Test fun secureGrantEnablesOwnServiceAndCanBeRestored() {
-        val resolver = context.contentResolver
-        val oldServices = Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        val oldEnabled = Settings.Secure.getInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0)
-        val previouslyGranted = context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
-        device.executeShellCommand("pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS")
-        try {
-            assertTrue(HomeAccessibility.enable(context))
-            val own = ComponentName(context, HomeButtonService::class.java).flattenToString()
-            assertTrue(Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).contains(own))
-            assertEquals(1, Settings.Secure.getInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED))
-            assertTrue(HomeAccessibility.enable(context))
-        } finally {
-            Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, oldServices)
-            Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, oldEnabled)
-            if (!previouslyGranted) device.executeShellCommand("pm revoke ${context.packageName} android.permission.WRITE_SECURE_SETTINGS")
-        }
-    }
-    @Test fun missingGrantDoesNotChangeEnabledServices() {
-        val resolver = context.contentResolver
-        device.executeShellCommand("pm revoke ${context.packageName} android.permission.WRITE_SECURE_SETTINGS")
-        val before = Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        assertFalse(HomeAccessibility.enable(context))
-        assertEquals(before, Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES))
+    @Test fun releaseDoesNotRequestPrivilegedAccessibilityWrites() {
+        @Suppress("DEPRECATION")
+        val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+        assertFalse(info.requestedPermissions.orEmpty().contains(Manifest.permission.WRITE_SECURE_SETTINGS))
     }
     @Test fun usbOpensBundledFileManager() {
         instrumentation.runOnMainSync { assertTrue(SettingsRouter.files(context)) }

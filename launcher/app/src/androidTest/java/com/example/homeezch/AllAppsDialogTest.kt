@@ -13,6 +13,18 @@ import org.junit.Test
 class AllAppsDialogTest {
     @get:Rule val ui = createComposeRule()
 
+    @Test fun searchKeepsKeyboardFocusWhileFilteringAppIcons() {
+        ui.setContent { MaterialTheme { AllAppsDialog(listOf(LaunchApp("Alpha", null),
+            LaunchApp("Beta", ComponentName("test.beta", "Main"))), emptyList(), false, {}, {}, {}) } }
+        val search = ui.onNodeWithText("Поиск приложений")
+        search.performClick().performTextInput("Be")
+        search.assertIsFocused()
+        ui.onNodeWithText("Alpha").assertDoesNotExist()
+        ui.onNodeWithText("Beta").assertExists()
+        search.performTextInput("ta")
+        search.assertIsFocused()
+    }
+
     @Test fun hiddenAppKeepsItsIconAndCanStillBeLaunched() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val app = LaunchApp("Проводник", ComponentName(context, FileBrowserActivity::class.java))

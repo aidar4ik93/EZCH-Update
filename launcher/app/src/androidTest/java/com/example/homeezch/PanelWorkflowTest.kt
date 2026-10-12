@@ -33,6 +33,10 @@ class PanelWorkflowTest {
         trigger.performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
         trigger.performKeyInput { pressKey(Key.DirectionCenter) }
         ui.waitForIdle()
+        if (!tv) {
+            ui.waitUntil(5000) { ui.onAllNodesWithTag("quick-Настройки EZCH").fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithTag("quick-Настройки EZCH").performClick(); ui.waitForIdle()
+        } else ui.waitUntil(5000) { ui.onAllNodesWithTag("source-external-storage").fetchSemanticsNodes().isNotEmpty() }
     }
     private fun capture(name: String) {
         ui.waitForIdle()
@@ -43,11 +47,11 @@ class PanelWorkflowTest {
         screenshot.recycle()
     }
     @Test fun screenshotsShowActualDesktopAndBothIndependentPanels() {
-        capture("desktop-025")
-        open(true); capture("sources-panel-025")
+        capture("desktop-026")
+        open(true); capture("sources-strip-026")
         device.pressBack(); ui.waitForIdle()
         ui.onNodeWithTag("sources-launcher").assertIsFocused()
-        open(false); capture("settings-panel-025")
+        open(false); capture("settings-panel-026")
         device.pressBack(); ui.waitForIdle()
         ui.onNodeWithTag("settings-launcher").assertIsFocused()
     }
@@ -84,13 +88,11 @@ class PanelWorkflowTest {
         open(true)
         ui.onNodeWithTag("sources-list").performScrollToNode(hasTestTag("source-external-storage"))
         ui.onNodeWithTag("source-external-storage").performClick()
-        ui.onNodeWithTag("sources-list").performScrollToNode(hasTestTag("sources-usb-files"))
-        ui.onNodeWithTag("sources-usb-files").performClick()
         ui.waitUntil(10000) { ui.activity.lifecycle.currentState != androidx.lifecycle.Lifecycle.State.RESUMED }
         device.pressBack()
         ui.waitUntil(10000) { ui.activity.lifecycle.currentState == androidx.lifecycle.Lifecycle.State.RESUMED }
         ui.waitForIdle()
-        ui.onNodeWithTag("sources-panel").assertIsDisplayed()
+        ui.onNodeWithTag("source-external-storage").assertIsDisplayed()
         device.pressBack(); ui.waitForIdle()
         ui.onNodeWithTag("sources-launcher").assertIsFocused()
     }

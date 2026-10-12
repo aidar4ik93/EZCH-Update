@@ -59,6 +59,13 @@ internal data class Workspace(
     fun hideApp(key: String) = copy(hiddenApps = (hiddenApps + key).distinct())
     fun hideSource(key: String) = copy(hiddenSources = (hiddenSources + key).distinct())
     fun restoreApp(key: String) = copy(hiddenApps = hiddenApps - key)
+    fun favorite(key: String): Workspace {
+        if (rows.none { key in it.appKeys }) return this
+        val target = rows.firstOrNull { it.id == "favorites" } ?: AppShelf("favorites", "Избранное", emptyList())
+        val other = rows.filterNot { it.id == target.id }.map { it.copy(appKeys = it.appKeys - key) }
+        return copy(rows = listOf(target.copy(appKeys = (target.appKeys + key).distinct())) + other,
+            hiddenApps = hiddenApps - key)
+    }
     fun addRow(title: String, id: String) = copy(rows = rows + AppShelf(id, title, emptyList()))
     fun moveRow(id: String, delta: Int): Workspace {
         val i = rows.indexOfFirst { it.id == id }; val j = i + delta

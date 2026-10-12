@@ -41,6 +41,15 @@ private fun HomeSetupPanel(onClose: () -> Unit) {
     var state by remember { mutableStateOf(readHomeSetup(context)) }
     var resumed by remember { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     var notice by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("home_setup", Context.MODE_PRIVATE)
+        if (!state.effectiveHome && !prefs.getBoolean("home_system_prompt_v26", false)) {
+            prefs.edit().putBoolean("home_system_prompt_v26", true).apply()
+            val intent = HomeRole.requestIntent(context)
+            if (intent != null) SettingsRouter.open(context, listOf(intent))
+            else notice = "Прошивка не предоставляет штатный выбор HOME. Назначение не подтверждено."
+        }
+    }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -72,7 +81,7 @@ private fun HomeSetupPanel(onClose: () -> Unit) {
                 Button(onClick = {
                     val intent = HomeRole.requestIntent(context)
                     if (intent != null) SettingsRouter.open(context, listOf(intent))
-                    else notice = "Android не предлагает смену HOME. Используйте службу кнопки Home ниже."
+                    else notice = "Прошивка ограничивает выбор HOME. Откройте системные настройки; назначение не подтверждено."
                 }, enabled = !state.effectiveHome) { Text("Выбрать EZCH главным экраном") }
                 Text("Служба кнопки Home: " + when {
                     state.serviceConnected -> "подключена к Android"

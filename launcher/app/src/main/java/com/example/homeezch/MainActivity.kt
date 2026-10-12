@@ -152,6 +152,7 @@ class MainActivity : ComponentActivity() {
             var storeOpen by remember { mutableStateOf(false) }
             var lastFocused by remember { mutableStateOf<String?>(null) }
             var premium by remember { mutableStateOf(LauncherPrefs.isPremium(this@MainActivity)) }
+            LaunchedEffect(sourceGeneration) { premium = effectivePremium(this@MainActivity) }
             val storedOrder = remember { LauncherPrefs.loadOrder(this@MainActivity) }
 
             LaunchedEffect(appGeneration) {
@@ -187,8 +188,7 @@ class MainActivity : ComponentActivity() {
                     refreshSources = sourceGeneration,
                     premium = premium,
                     onPremiumChange = {
-                        premium = it
-                        LauncherPrefs.setPremium(this@MainActivity, it)
+                        premium = effectivePremium(this@MainActivity)
                     },
                     onLaunch = { app ->
 

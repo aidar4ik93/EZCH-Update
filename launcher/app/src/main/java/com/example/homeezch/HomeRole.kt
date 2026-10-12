@@ -33,12 +33,9 @@ internal object HomeRole {
     }.getOrDefault(false)
 
     fun requestIntent(context: Context): Intent? {
-        // The role is already held in this split-brain case. Asking for it again
-        // cannot displace the OEM HOME handler: offer accessibility fallback.
-        if (holdsRole(context) && !isHome(context)) return null
         if (Build.VERSION.SDK_INT >= 29) runCatching {
             val roles = context.getSystemService(RoleManager::class.java)
-            if (roles?.isRoleAvailable(RoleManager.ROLE_HOME) == true)
+            if (roles?.isRoleAvailable(RoleManager.ROLE_HOME) == true && !roles.isRoleHeld(RoleManager.ROLE_HOME))
                 return roles.createRequestRoleIntent(RoleManager.ROLE_HOME)
         }
         return listOf(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))

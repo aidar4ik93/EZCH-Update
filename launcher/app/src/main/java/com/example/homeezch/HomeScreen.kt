@@ -128,6 +128,11 @@ internal fun HomeScreen(
     LaunchedEffect(refreshSources) {
         sourceSnapshot = withContext(Dispatchers.IO) { scanTvSources(context) }
         if (sourceSnapshot.usbVolumes.isEmpty()) usbExpanded = false
+        if (context.getSharedPreferences("home_setup", android.content.Context.MODE_PRIVATE).getBoolean("setup_reviewed_v24", false)) {
+            sourceSnapshot.entries.firstOrNull { it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }?.let { tuner ->
+                if (SourceSettings.consumeTunerStart(context) && !SettingsRouter.source(context, tuner)) notice = "Автозапуск ТВ ограничен прошивкой"
+            }
+        }
         if (editing?.source == true && sourceSnapshot.entries.none { it.id == editing?.key }) {
             editing = null; draft = saved; press.reset()
             saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }?.let(::request)
@@ -185,7 +190,11 @@ internal fun HomeScreen(
     }
     fun showSources() {
         if (editing != null || saving) return
+        if (sourcesPanel) { closeSources(); return }
         press.reset(); menu = null; launcherSettings = false; sourcesPanel = true
+    }
+    BackHandler(sourcesPanel && menu == null) {
+        if (editing?.source == true) { if (!saving) cancel() } else closeSources()
     }
     LaunchedEffect(focusRevision, sourcesPanel) {
         if (sourcesPanel) {
@@ -279,8 +288,25 @@ internal fun HomeScreen(
                     }
                 }
                 Text("Разъёмы", color = Color.White, fontSize = 19.sp)
-                PanelLaunchButton(tv = true, modifier = Modifier.padding(vertical = 10.dp)
-                    .focusRequester(sourcesTrigger), onClick = ::showSources)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    PanelLaunchButton(tv = true, modifier = Modifier.padding(vertical = 10.dp)
+                        .focusRequester(sourcesTrigger), onClick = ::showSources)
+                    SourceStrip(sourcesPanel, visibleSources, sourceList,
+                        Modifier.weight(1f).then(rowNavigation(visibleSources.map { it.id }))) { source ->
+                        val card = CardMenu(source.id, source.label, true)
+                        fun activate() {
+                            if (source.kind == TvSourceKind.USB) {
+                                if (sourceSnapshot.usbVolumes.size == 1) SettingsRouter.files(context, sourceSnapshot.usbVolumes.first())
+                                else if (sourceSnapshot.usbVolumes.isEmpty()) SettingsRouter.files(context)
+                                else usbExpanded = true
+                            } else if (!SettingsRouter.source(context, source)) notice = "Прошивка не разрешила переключение входа"
+                        }
+                        CompactSourceCard(source, premium,
+                            input(card, ::activate).onFocusChanged { if (it.isFocused) onCardFocus(card.key) }) {
+                            if (editing == null && !saving) activate()
+                        }
+                    }
+                }
                 if (editing != null || notice.isNotEmpty()) Text(
                     if (saving) "Сохраняем…" else editing?.let {
                         "${it.name}  ·  ← → переместить${if (it.source) "" else "  ·  ↑ ↓ другая строка"}  ·  OK сохранить  ·  Back отменить"
@@ -297,67 +323,31 @@ internal fun HomeScreen(
             onMove = { begin(card) },
             onHide = {
                 menu = null; press.reset()
-                commit(if (card.source) saved.hideSource(card.key) else saved.hideApp(card.key)) {
+                commit(saved.hideApp(card.key)) {
                     saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }?.let(::request)
                 }
-            })
+            }, onFavorite = { menu = null; press.reset(); commit(saved.favorite(card.key)) { request(card.key) } },
+            onInfo = byKey[card.key]?.component?.let { component -> { menu = null
+                SettingsRouter.open(context, listOf(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:${component.packageName}"))))
+            } })
     }
-    if (sourcesPanel) SidePanel("Разъёмы", PanelEdge.LEFT, "sources-panel", sourcesFirst,
-        closeModifier = if (visibleSources.isEmpty()) Modifier.focusRequester(sourcesFirst) else Modifier,
-        onBackWhileEditing = if (editing?.source == true) { { if (!saving) cancel() } } else null,
-        onDismiss = ::closeSources) {
-        LazyColumn(state = sourceList, modifier = Modifier.weight(1f).fillMaxWidth().testTag("sources-list")) {
-            items(visibleSources, key = { it.id }) { source ->
-                val card = CardMenu(source.id, source.label, true)
-                fun activate() {
-                    if (source.kind == TvSourceKind.USB) usbExpanded = !usbExpanded
-                    else if (!SettingsRouter.source(context, source)) notice = "Прошивка не разрешила переключение входа"
+    menu?.takeIf { it.source }?.let { card ->
+        CardActionPopup(card.name, true, cardBounds[card.key], press,
+            onDismiss = { menu = null; press.reset(); request(card.key) }, onMove = { begin(card) },
+            onHide = {
+                menu = null; press.reset()
+                commit(saved.hideSource(card.key)) {
+                    visibleSources.firstOrNull { it.id != card.key }?.let { request(it.id) } ?: closeSources()
                 }
-                SourcePanelItem(source, modifier = input(card, ::activate)
-                    .then(if (source.id == visibleSources.first().id) Modifier.focusRequester(sourcesFirst) else Modifier)
-                    .onFocusChanged { if (it.isFocused) onCardFocus(card.key) },
-                    onClick = { if (editing == null && !saving) activate() })
-            }
-            if (visibleSources.isEmpty()) item {
-                Text("Все источники скрыты. Восстановите их кнопкой ниже.", color = Muted, fontSize = 13.sp)
-            }
-            if (usbExpanded) {
-                if (sourceSnapshot.usbVolumes.isEmpty()) item {
-                    SettingsItem("USB", "Открыть файловый менеджер", "Выберите файлы или папку накопителя.",
-                        modifier = Modifier.testTag("sources-usb-files")) { SettingsRouter.files(context) }
-                }
-                itemsIndexed(sourceSnapshot.usbVolumes, key = { index, volume ->
-                    "$index-${volume.uuid ?: volume.getDescription(context)}"
-                }) { _, volume ->
-                    SettingsItem("USB", volume.getDescription(context), "Открыть накопитель.") {
-                        if (!SettingsRouter.files(context, volume)) notice = "Файловый менеджер недоступен"
-                    }
-                }
-            }
-            if (saved.hiddenSources.isNotEmpty()) item {
-                SettingsItem("Экран", "Восстановить скрытые источники", "Вернуть карточки разъёмов.",
-                    "Скрыто: ${saved.hiddenSources.size}", enabled = !saving) { commit(saved.copy(hiddenSources = emptyList())) }
-            }
-            if (notice.isNotEmpty()) item { Text(notice, color = Gold, fontSize = 12.sp) }
-            if (editing?.source == true) item {
-                Text("← → переместить  ·  OK сохранить  ·  Back отменить", color = Gold, fontSize = 12.sp)
-            }
-        }
-        menu?.takeIf { it.source }?.let { card ->
-            CardActionPopup(card.name, true, cardBounds[card.key], press,
-                onDismiss = { menu = null; press.reset(); request(card.key) }, onMove = { begin(card) },
-                onHide = {
-                    menu = null; press.reset()
-                    commit(saved.hideSource(card.key)) {
-                        val next = visibleSources.firstOrNull { it.id != card.key }
-                        if (next != null) request(next.id) else scope.launch {
-                            withFrameNanos { }
-                            sourcesFirst.requestFocus()
-                        }
-                    }
-                })
-        }
+            }, onAutoStart = if (sourceSnapshot.entries.any { it.id == card.key && it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }) {
+                { SourceSettings.setTunerAutoStart(context, !SourceSettings.tunerAutoStart(context)); menu = null; request(card.key) }
+            } else null, autoStart = SourceSettings.tunerAutoStart(context))
     }
+    if (usbExpanded) AlertDialog(onDismissRequest = { usbExpanded = false }, title = { Text("USB / накопители") },
+        text = { Column { sourceSnapshot.usbVolumes.forEach { volume ->
+            TextButton(onClick = { usbExpanded = false; SettingsRouter.files(context, volume) }) { Text(volume.getDescription(context)) }
+        } } }, confirmButton = { TextButton(onClick = { usbExpanded = false }) { Text("Закрыть") } })
     if (launcherSettings) SidePanel("Настройки", PanelEdge.RIGHT, "settings-panel", settingsFirst,
         onDismiss = ::closeSettings) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
@@ -373,12 +363,39 @@ internal fun HomeScreen(
                 SettingsItem("Домой", "Кнопка Home", "Дополнительная служба: короткое нажатие возвращает домой, длинное открывает меню.",
                     if (helperEnabled) "Включена" else "По желанию") { HomeRole.request(context) }
                 SettingsItem("Настройки", "Настройки телевизора", "Сеть, Bluetooth, звук, экран и другие параметры Android.") { SettingsRouter.settings(context) }
+                SettingsSection("Источники и автозапуск")
+                val tunerAvailable = sourceSnapshot.entries.any { it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }
+                var autoTuner by remember { mutableStateOf(SourceSettings.tunerAutoStart(context)) }
+                SettingsItem("Домой", "Запускать ТВ при включении", "Один раз после загрузки устройства. Только для доступного системного тюнера.",
+                    if (autoTuner) "Включено" else "Выключено", enabled = tunerAvailable) {
+                    autoTuner = !autoTuner; SourceSettings.setTunerAutoStart(context, autoTuner)
+                }
+                SettingsItem("Экран", "Добавить HDMI вручную", "Ярлык системных настроек. Наличие порта и подключения не подтверждается.") {
+                    SourceSettings.add(context, TvSourceKind.HDMI); sourceSnapshot = scanTvSources(context)
+                }
+                SettingsItem("Экран", "Добавить AV вручную", "Для прошивок, скрывающих список входов.") {
+                    SourceSettings.add(context, TvSourceKind.AV); sourceSnapshot = scanTvSources(context)
+                }
+                SettingsItem("Экран", "Убрать ручные источники", "Удаляет только добавленные вручную ярлыки.") {
+                    SourceSettings.clear(context); sourceSnapshot = scanTvSources(context)
+                }
+                SettingsItem("Экран", "Восстановить скрытые источники", "Вернуть карточки разъёмов.", "Скрыто: ${saved.hiddenSources.size}") {
+                    commit(saved.copy(hiddenSources = emptyList()))
+                }
                 SettingsSection("Оформление и обои")
                 WallpaperControls { onPremiumChange(true) }
                 SettingsSection("Приложения и рабочий стол")
                 SettingsItem("Папка", "Файловый менеджер / USB", "Открыть накопитель, скопировать файлы или установить APK.") { context.startActivity(Intent(context, FileBrowserActivity::class.java)) }
                 SettingsItem("Строки", "Все приложения / восстановить скрытые", "Вернуть скрытые значки на рабочий стол.", "Скрыто: ${saved.hiddenApps.size}") { allApps = true }
                 SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { rowTitle = ""; addRow = true }
+                SettingsSection("Об устройстве и поддержка")
+                val memoryInfo = remember { android.app.ActivityManager.MemoryInfo().also {
+                    context.getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(it)
+                } }
+                Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}\nОЗУ: ${"%.2f".format(memoryInfo.totalMem / 1073741824.0)} ГБ · EZCH 0.26", color = Muted, fontSize = 12.sp)
+                SettingsItem("Домой", "Поддержка EZCH", "Telegram-канал проекта.") {
+                    SettingsRouter.open(context, listOf(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/+huiJDfK5jdA4NzQy"))))
+                }
                 saved.rows.forEachIndexed { index, row ->
                     SettingsSection("Строка: ${row.title}")
                     Row {

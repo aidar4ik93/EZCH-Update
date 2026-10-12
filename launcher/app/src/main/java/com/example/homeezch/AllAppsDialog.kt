@@ -22,6 +22,8 @@ internal fun AllAppsDialog(
     onDismiss: () -> Unit, onLaunch: (LaunchApp) -> Unit, onToggle: (LaunchApp) -> Unit
 ) {
     val first = remember { FocusRequester() }
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(apps, query) { apps.filter { it.name.contains(query, ignoreCase = true) } }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(.94f).fillMaxHeight(.9f), shape = DesktopShape,
             color = androidx.compose.ui.graphics.Color(0xF0081222)) {
@@ -31,12 +33,15 @@ internal fun AllAppsDialog(
                     TextButton(onClick = onDismiss) { Text("Закрыть") }
                 }
                 Text("OK — открыть · Скрытые приложения тоже доступны здесь", color = Muted, fontSize = 12.sp)
+                OutlinedTextField(query, { query = it.take(80) }, singleLine = true,
+                    label = { Text("Поиск приложений") }, modifier = Modifier.fillMaxWidth())
+                if (filtered.isEmpty()) Text("Ничего не найдено")
                 Spacer(Modifier.height(12.dp))
                 LazyVerticalGrid(GridCells.Adaptive(150.dp * AppCardScale), Modifier.weight(1f),
                     contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    itemsIndexed(apps, key = { _, app -> app.component?.packageName ?: "ezch-store" }) { index, app ->
+                    itemsIndexed(filtered, key = { _, app -> app.component?.packageName ?: "ezch-store" }) { index, app ->
                         val key = app.component?.packageName ?: "ezch-store"
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             AppTile(app, 140.dp,
@@ -49,7 +54,7 @@ internal fun AllAppsDialog(
                     }
                 }
                 LaunchedEffect(apps.isNotEmpty()) {
-                    if (apps.isNotEmpty()) { withFrameNanos { }; first.requestFocus() }
+                    if (filtered.isNotEmpty()) { withFrameNanos { }; first.requestFocus() }
                 }
             }
         }

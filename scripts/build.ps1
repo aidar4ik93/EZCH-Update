@@ -13,13 +13,13 @@ if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
 }
 if ($Release) {
     & (Join-Path $PSScriptRoot 'build-release.ps1')
-    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory 'dist/EZCH_Launcher_0.17_USB.apk')
+    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory 'dist/EZCH_Launcher_0.26_USB.apk')
     return
 }
 Push-Location -LiteralPath $projectDirectory
 try {
     & (Join-Path $PSScriptRoot 'validate-apps-json.ps1')
     $apkTask = if ($Release) { ':app:assembleRelease' } else { ':app:assembleDebug' }
-    & './gradlew.bat' $apkTask ':app:assembleDebugAndroidTest' ':app:lintDebug' ':launcher:assembleDebug' ':launcher:assembleDebugAndroidTest' ':launcher:testDebugUnitTest' ':launcher:lintDebug' '--console=plain'
+    & './gradlew.bat' $apkTask ':app:testDebugUnitTest' ':app:assembleDebugAndroidTest' ':app:lintDebug' ':launcher:assembleDebug' ':launcher:assembleDebugAndroidTest' ':launcher:testDebugUnitTest' ':launcher:lintDebug' '--console=plain'
     if ($LASTEXITCODE -ne 0) { throw "Android build failed with exit code $LASTEXITCODE." }
 } finally { Pop-Location }

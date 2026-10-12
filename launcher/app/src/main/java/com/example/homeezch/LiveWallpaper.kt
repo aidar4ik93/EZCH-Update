@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -35,17 +36,20 @@ import kotlinx.coroutines.delay
 
 internal enum class WallpaperMode { AUTO, PREMIUM, LITE }
 internal object VideoDiagnostics { val activePlayers = java.util.concurrent.atomic.AtomicInteger(0) }
-internal data class WallpaperChoice(val mode: WallpaperMode = WallpaperMode.AUTO, val moving: Boolean = false, val video: String? = null)
+internal data class WallpaperChoice(val mode: WallpaperMode = WallpaperMode.AUTO, val moving: Boolean = false, val video: String? = null, val image: String? = null)
 internal object WallpaperSettings {
     private const val FILE = "wallpaper"
     fun load(context: Context): WallpaperChoice {
         val p = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val fallback = if (context.getSharedPreferences("launcher_preferences", Context.MODE_PRIVATE).getBoolean("lite", false)) "LITE" else "AUTO"
+        val legacy = context.getSharedPreferences("launcher_preferences", Context.MODE_PRIVATE)
+        val previous = context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
+        val fallback = if (legacy.getBoolean("lite", false) ||
+            (previous.contains("premium") && !previous.getBoolean("premium", true))) "LITE" else "AUTO"
         return WallpaperChoice(runCatching { WallpaperMode.valueOf(p.getString("mode", fallback)!!) }.getOrDefault(WallpaperMode.AUTO),
-            p.getBoolean("moving", false), p.getString("video", null))
+            p.getBoolean("moving", false), p.getString("video", null), p.getString("image", null))
     }
     fun save(context: Context, value: WallpaperChoice) = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-        .putString("mode", value.mode.name).putBoolean("moving", value.moving).putString("video", value.video).apply()
+        .putString("mode", value.mode.name).putBoolean("moving", value.moving).putString("video", value.video).putString("image", value.image).apply()
 }
 
 @Composable internal fun WallpaperControls(onChange: () -> Unit) {
@@ -56,9 +60,15 @@ internal object WallpaperSettings {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            save(choice.copy(moving = true, video = uri.toString()))
+            save(choice.copy(moving = true, video = uri.toString(), image = null))
             error = null
         }.onFailure { error = "Видео недоступно. Выберите файл во внутренней памяти или на USB." }
+    }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            save(choice.copy(moving = false, video = null, image = uri.toString())); error = null
+        }.onFailure { error = "Изображение недоступно. Выберите другой файл." }
     }
     val modeName = when (choice.mode) { WallpaperMode.AUTO -> "Авто"; WallpaperMode.PREMIUM -> "Premium"; WallpaperMode.LITE -> "Lite" }
     val modeHelp = when (choice.mode) {
@@ -70,11 +80,13 @@ internal object WallpaperSettings {
         save(choice.copy(mode = WallpaperMode.entries[(choice.mode.ordinal + 1) % 3]))
     }
     SettingsItem("Обои", "Живые обои · Космос", "Плавное движение исходного космического фона без дополнительных файлов.",
-        if (choice.moving && choice.video == null) "Выбраны" else null) { save(choice.copy(moving = true, video = null)) }
+        if (choice.moving && choice.video == null) "Выбраны" else null) { save(choice.copy(moving = true, video = null, image = null)) }
     SettingsItem("Обои", "Выбрать видеообои / USB", "Ваше видео повторяется без звука и останавливается при выходе с рабочего стола.",
         if (choice.moving && choice.video != null) "Выбраны" else null) { picker.launch(arrayOf("video/*")) }
+    SettingsItem("Обои", "Выбрать изображение / USB", "Ваш фон сохраняется после перезагрузки.",
+        if (choice.image != null) "Выбран" else null) { imagePicker.launch(arrayOf("image/*")) }
     SettingsItem("Обои", "Вернуть исходный фон", "Неподвижные обои из оригинального оформления.",
-        if (!choice.moving) "Выбран" else null) { save(choice.copy(moving = false, video = null)) }
+        if (!choice.moving && choice.image == null) "Выбран" else null) { save(choice.copy(moving = false, video = null, image = null)) }
     error?.let { Text(it) }
 }
 
@@ -89,7 +101,7 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
     var resumeGeneration by remember { mutableIntStateOf(0) }
     var powerSaving by remember { mutableStateOf(false) }
     val memory = remember { context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager }
-    val lowRam = remember { val info = ActivityManager.MemoryInfo(); memory.getMemoryInfo(info); memory.isLowRamDevice || info.totalMem < 2L * 1024 * 1024 * 1024 }
+    val lowRam = remember { val info = ActivityManager.MemoryInfo(); memory.getMemoryInfo(info); isLiteMemory(info.totalMem, memory.isLowRamDevice) }
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) resumeGeneration++
@@ -116,8 +128,24 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
     if (!premium || shouldUseLite(choice.mode, lowRam, powerSaving)) {
         Box(Modifier.fillMaxSize().background(Color.Black)); return
     }
+    var custom by remember(choice.image) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(choice.image) {
+        custom = choice.image?.let { selected -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val uri = Uri.parse(selected)
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+                var sample = 1
+                while (bounds.outWidth / sample > 1920 || bounds.outHeight / sample > 1080) sample *= 2
+                context.contentResolver.openInputStream(uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                }?.asImageBitmap()
+            }.getOrNull()
+        } }
+    }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (choice.moving && choice.video == null && resumed && !powerSaving) {
+        if (custom != null) Image(custom!!, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else if (choice.moving && choice.video == null && resumed && !powerSaving) {
             val transition = rememberInfiniteTransition(label = "cosmos")
             val motion by transition.animateFloat(1f, 1.025f, infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Reverse), label = "slowOrbit")
             Image(painterResource(R.drawable.cosmic_wallpaper), null, contentScale = ContentScale.Crop,

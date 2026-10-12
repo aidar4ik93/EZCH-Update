@@ -81,7 +81,13 @@ internal fun scanTvSources(context: Context): TvSourcesSnapshot {
             TvSourceKind.AV,
             connected = runCatching {
                 manager?.getInputState(input.id) in listOf(TvInputManager.INPUT_STATE_CONNECTED, TvInputManager.INPUT_STATE_CONNECTED_STANDBY)
-            }.getOrDefault(false)
+            }.getOrDefault(false),
+            detail = runCatching { when (manager?.getInputState(input.id)) {
+                TvInputManager.INPUT_STATE_CONNECTED -> "Подключено"
+                TvInputManager.INPUT_STATE_CONNECTED_STANDBY -> "Ожидание"
+                TvInputManager.INPUT_STATE_DISCONNECTED -> "Не подключено"
+                else -> "Статус неизвестен"
+            } }.getOrDefault("Статус неизвестен")
         )
     }
 
@@ -109,18 +115,11 @@ internal fun scanTvSources(context: Context): TvSourcesSnapshot {
         )
     }
 
-    // Keep the approved port row useful on boxes whose firmware hides TV input APIs.
-    // These are manual shortcuts, never evidence that a cable is connected.
-    if (entries.none { it.kind == TvSourceKind.TV }) entries.add(0,
-        TvSourceEntry("manual-tv", "ТВ", "Выбор входа в настройках телевизора", TvSourceKind.TV, detail = "Состояние неизвестно"))
-    val hdmiCount = entries.count { it.kind == TvSourceKind.HDMI }
-    for (number in hdmiCount + 1..3) entries += TvSourceEntry("manual-hdmi-$number", "HDMI $number",
-        "Ручной выбор входа", TvSourceKind.HDMI, detail = "Состояние неизвестно")
-    if (entries.none { it.kind == TvSourceKind.AV }) entries += TvSourceEntry("manual-av", "AV", "Ручной выбор входа", TvSourceKind.AV, detail = "Состояние неизвестно")
+    entries += SourceSettings.manual(context)
     if (entries.none { it.kind == TvSourceKind.USB }) {
         val devices = runCatching { (context.getSystemService(Context.USB_SERVICE) as android.hardware.usb.UsbManager).deviceList.size }.getOrDefault(0)
         entries += TvSourceEntry("external-storage", "USB", "Файловый менеджер", TvSourceKind.USB,
-            connected = devices > 0, detail = if (devices > 0) "Устройств: $devices" else "Нет накопителя")
+            connected = false, detail = if (devices > 0) "USB-устройств: $devices · накопитель не смонтирован" else "Нет накопителя")
     }
     return TvSourcesSnapshot(entries.sortedBy { when (it.kind) { TvSourceKind.TV -> 0; TvSourceKind.HDMI -> 1; TvSourceKind.AV -> 2; TvSourceKind.USB -> 3 } }, volumes)
 }

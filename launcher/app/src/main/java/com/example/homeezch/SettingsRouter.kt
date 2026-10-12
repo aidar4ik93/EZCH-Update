@@ -44,10 +44,6 @@ internal object SettingsRouter {
         return open(context, candidates)
     }
     fun accessibility(context: Context): Boolean {
-        if (!HomeButtonService.connected && HomeAccessibility.enable(context)) {
-            Toast.makeText(context, "Запрос включения сохранён. Проверяем подключение службы EZCH", Toast.LENGTH_LONG).show()
-            return true
-        }
         Toast.makeText(context, "Подтвердите включение службы EZCH для кнопки Home в системном окне Android.", Toast.LENGTH_LONG).show()
         val service = android.content.ComponentName(context, HomeButtonService::class.java).flattenToString()
         return open(context, listOf(

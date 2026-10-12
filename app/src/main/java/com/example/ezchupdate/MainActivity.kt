@@ -102,15 +102,15 @@ class MainActivity : ComponentActivity() {
                     val confirmation = snapshot?.confirmationIntent ?: return@collect
                     try {
                         startActivity(Intent(confirmation))
-                        InstallEvents.consumeConfirmation(snapshot.sessionId)
+                        InstallEvents.consumeConfirmation(this@MainActivity, snapshot.sessionId)
                     } catch (error: ActivityNotFoundException) {
-                        InstallEvents.consumeConfirmation(snapshot.sessionId)
+                        InstallEvents.consumeConfirmation(this@MainActivity, snapshot.sessionId)
                         viewModel.onConfirmationLaunchFailed(
                             snapshot.sessionId,
                             error.message ?: "На устройстве нет системного установщика"
                         )
                     } catch (error: SecurityException) {
-                        InstallEvents.consumeConfirmation(snapshot.sessionId)
+                        InstallEvents.consumeConfirmation(this@MainActivity, snapshot.sessionId)
                         viewModel.onConfirmationLaunchFailed(
                             snapshot.sessionId,
                             error.message ?: "Android не разрешил открыть подтверждение установки"
@@ -245,7 +245,7 @@ private fun CatalogScreen(
                     },
                     color = if (state.failures.isNotEmpty() && !busy) Color(0xFFFFB779) else Turquoise,
                     fontSize = 14.sp,
-                    maxLines = 2,
+                    maxLines = 6,
                     overflow = TextOverflow.Ellipsis
                 )
             }

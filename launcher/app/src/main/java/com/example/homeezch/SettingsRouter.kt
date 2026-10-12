@@ -44,17 +44,26 @@ internal object SettingsRouter {
         return open(context, candidates)
     }
     fun accessibility(context: Context): Boolean {
-        if (HomeAccessibility.enable(context)) {
-            Toast.makeText(context, "Служба EZCH для кнопки Home включена", Toast.LENGTH_LONG).show()
+        if (!HomeButtonService.connected && HomeAccessibility.enable(context)) {
+            Toast.makeText(context, "Запрос включения сохранён. Проверяем подключение службы EZCH", Toast.LENGTH_LONG).show()
             return true
         }
         Toast.makeText(context, "Подтвердите включение службы EZCH для кнопки Home в системном окне Android.", Toast.LENGTH_LONG).show()
         val service = android.content.ComponentName(context, HomeButtonService::class.java).flattenToString()
         return open(context, listOf(
-            Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS").putExtra("android.intent.extra.COMPONENT_NAME", android.content.ComponentName(context, HomeButtonService::class.java)),
+            Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS").putExtra("android.intent.extra.COMPONENT_NAME", service),
             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), Intent(Settings.ACTION_SETTINGS)
         ))
     }
+    fun appDetails(context: Context): Boolean = open(context, listOf(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}")),
+        Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS), Intent(Settings.ACTION_SETTINGS)
+    ))
+    fun installPermission(context: Context): Boolean = open(context, listOf(
+        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${context.packageName}")),
+        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES),
+        Intent(Settings.ACTION_SECURITY_SETTINGS), Intent(Settings.ACTION_SETTINGS)
+    ))
     fun files(context: Context, volume: android.os.storage.StorageVolume? = null): Boolean {
         return open(context, listOf(Intent(context, FileBrowserActivity::class.java).apply {
             if (android.os.Build.VERSION.SDK_INT >= 30) volume?.directory?.let { putExtra("path", it.absolutePath) }

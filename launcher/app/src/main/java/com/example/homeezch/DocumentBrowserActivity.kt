@@ -71,9 +71,17 @@ class DocumentBrowserActivity : ComponentActivity() {
         if (result == null || result.sessionId != ownSession) return
         if (result.status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             result.confirmationIntent?.let { confirmation ->
-                runCatching { startActivity(Intent(confirmation)) }
-                    .onFailure { message = "Android не открыл окно установки"; busy = false }
-                InstallEvents.consumeConfirmation(result.sessionId)
+                try {
+                    startActivity(Intent(confirmation))
+                    InstallEvents.consumeConfirmation(this, result.sessionId)
+                } catch (error: Exception) {
+                    runCatching { packageManager.packageInstaller.abandonSession(result.sessionId) }
+                    InstallEvents.record(this, result.copy(
+                        status = PackageInstaller.STATUS_FAILURE,
+                        message = "Android не открыл окно установки: ${error.message.orEmpty()}",
+                        confirmationIntent = null
+                    ))
+                }
             }
         } else {
             message = if (result.status == PackageInstaller.STATUS_SUCCESS) "Приложение установлено" else "Установка отклонена: ${result.message.orEmpty()}"

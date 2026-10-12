@@ -44,11 +44,11 @@ internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifi
 }
 
 @Composable internal fun SettingsItem(icon: String, title: String, description: String,
-    state: String? = null, accent: Color = Ice, enabled: Boolean = true, onClick: () -> Unit) {
+    state: String? = null, accent: Color = Ice, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(200), label = "settingFocus")
     val shape = RoundedCornerShape(14.dp)
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)
+    Row(modifier.fillMaxWidth().padding(vertical = 5.dp)
         .graphicsLayer { scaleX = 1f + .018f * glow; scaleY = 1f + .018f * glow; alpha = if (enabled) 1f else .45f }
         .focusHalo(glow, accent).clip(shape).background(Color(0xB0192B43))
         .border(1.dp, accent.copy(alpha = .18f + .55f * glow), shape)

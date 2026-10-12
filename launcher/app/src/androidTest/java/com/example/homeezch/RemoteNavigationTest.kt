@@ -15,6 +15,9 @@ import org.junit.runner.RunWith
 /** Requires a TV device/emulator. This is navigation smoke coverage, not a frame benchmark. */
 @RunWith(AndroidJUnit4::class)
 class RemoteNavigationTest {
+    companion object {
+        @JvmStatic @org.junit.BeforeClass fun reviewedSetup() { prepareLauncherTest() }
+    }
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     private fun key(code: Int) {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(code)

@@ -27,7 +27,10 @@ internal object HomeAccessibility {
             val replaced = if (context.packageName == "com.example.homeezch.qa12") setOf("com.example.homeezch.qa/com.example.homeezch.HomeButtonService") else emptySet()
             val merged = mergeHomeServices(current, own, replaced)
             if (merged != current && !Settings.Secure.putString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, merged)) return false
-            Settings.Secure.putInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+            if (!Settings.Secure.putInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)) return false
+            val saved = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            Settings.Secure.getInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1 &&
+                saved.orEmpty().split(':').any { canonicalService(it) == canonicalService(own) }
         } catch (error: SecurityException) {
             Log.w("EZCH.Home", "Home helper grant unavailable", error)
             false

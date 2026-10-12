@@ -1,7 +1,6 @@
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/home_service_description"
     android:accessibilityEventTypes="typeWindowStateChanged"
-    android:packageNames="com.example.homeezch"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagRequestFilterKeyEvents"
     android:canRequestFilterKeyEvents="true"

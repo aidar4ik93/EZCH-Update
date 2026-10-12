@@ -7,6 +7,7 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="weather_access.xml" />
+        <exclude domain="sharedpref" path="home_setup.xml" />
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

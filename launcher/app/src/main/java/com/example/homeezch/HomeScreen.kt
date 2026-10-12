@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -25,16 +26,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.geometry.Rect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,6 +66,7 @@ internal fun HomeScreen(
     var menu by remember { mutableStateOf<CardMenu?>(null) }
     var saving by remember { mutableStateOf(false) }
     var launcherSettings by remember { mutableStateOf(false) }
+    var sourcesPanel by remember { mutableStateOf(false) }
     var allApps by remember { mutableStateOf(false) }
     var addRow by remember { mutableStateOf(false) }
     var rowTitle by remember { mutableStateOf("") }
@@ -72,9 +76,14 @@ internal fun HomeScreen(
     var focusRevision by remember { mutableIntStateOf(0) }
     var notice by remember { mutableStateOf("") }
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
+    val cardBounds = remember { mutableStateMapOf<String, Rect>() }
+    val settingsTrigger = remember { FocusRequester() }
+    val sourcesTrigger = remember { FocusRequester() }
+    val settingsFirst = remember { FocusRequester() }
+    val sourcesFirst = remember { FocusRequester() }
+    val sourceList = rememberLazyListState()
     val sourceIds = remember(sourceSnapshot) { sourceSnapshot.entries.map { it.id } }
     val press = remember { CenterPress() }
-    val cardBounds = remember { mutableMapOf<String, Rect>() }
     var pendingHorizontal by remember { mutableStateOf<String?>(null) }
     val horizontalPress = remember { HorizontalPress() }
     var focusedKey by remember { mutableStateOf<String?>(null) }
@@ -133,7 +142,7 @@ internal fun HomeScreen(
     }
     LaunchedEffect(homeReset, appsReady, saving) {
         if (homeReset > 0 && appsReady && !saving) {
-            menu = null; launcherSettings = false; allApps = false; addRow = false
+            menu = null; launcherSettings = false; sourcesPanel = false; allApps = false; addRow = false
             editing = null; draft = saved; usbExpanded = false; press.reset(); pendingHorizontal = null
             desktopScroll.scrollTo(0)
             val row = saved.rows.first()
@@ -142,7 +151,7 @@ internal fun HomeScreen(
         }
     }
     LaunchedEffect(homeMenu, appsReady, saving) {
-        if (homeMenu > 0 && appsReady && !saving) {
+        if (homeMenu > 0 && appsReady && !saving && !launcherSettings && !sourcesPanel) {
             val selected = editing?.key ?: focusedKey ?: preferredFocus ?: saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }
             editing = null; draft = saved
             byKey[selected]?.let { menu = CardMenu(selected!!, it.name, false) }
@@ -151,11 +160,43 @@ internal fun HomeScreen(
         }
     }
     // Tiles scroll themselves into view and then reattach the same logical focus target.
-    BackHandler(!launcherSettings && !allApps && menu == null && !addRow) {
+    BackHandler(!launcherSettings && !sourcesPanel && !allApps && menu == null && !addRow) {
         if (editing != null && !saving) cancel()
     }
 
     val shown = if (editing == null) saved else draft
+    val visibleSources = remember(sourceSnapshot, shown.sourceOrder, shown.hiddenSources) {
+        val sourceById = sourceSnapshot.entries.associateBy { it.id }
+        (shown.sourceOrder + sourceIds).distinct().filterNot { it in shown.hiddenSources }.mapNotNull(sourceById::get)
+    }
+    fun closeSettings() {
+        launcherSettings = false
+        scope.launch { withFrameNanos { }; settingsTrigger.requestFocus() }
+    }
+    fun closeSources() {
+        if (editing?.source == true) { draft = saved; editing = null; press.reset() }
+        menu = null
+        sourcesPanel = false
+        scope.launch { withFrameNanos { }; sourcesTrigger.requestFocus() }
+    }
+    fun showSettings() {
+        if (editing != null || saving) return
+        press.reset(); menu = null; sourcesPanel = false; launcherSettings = true
+    }
+    fun showSources() {
+        if (editing != null || saving) return
+        press.reset(); menu = null; launcherSettings = false; sourcesPanel = true
+    }
+    LaunchedEffect(focusRevision, sourcesPanel) {
+        if (sourcesPanel) {
+            val index = visibleSources.indexOfFirst { it.id == focusTarget }
+            if (index >= 0) {
+                sourceList.scrollToItem(index)
+                withFrameNanos { }
+                requesters[focusTarget]?.requestFocus()
+            }
+        }
+    }
     fun input(card: CardMenu, click: () -> Unit): Modifier = Modifier
         .onGloballyPositioned { cardBounds[card.key] = it.boundsInWindow() }
         .focusRequester(requesters.getOrPut(card.key) { FocusRequester() })
@@ -170,10 +211,19 @@ internal fun HomeScreen(
             NativeKey.KEYCODE_DPAD_RIGHT -> 1
             else -> 0
         }
-        if (direction == 0 || editing != null) false else {
-            if (!saving && key.action == NativeKey.ACTION_DOWN &&
+        if (direction == 0 || editing != null) {
+            if (editing == null && key.action == NativeKey.ACTION_DOWN &&
+                key.keyCode in listOf(NativeKey.KEYCODE_DPAD_UP, NativeKey.KEYCODE_DPAD_DOWN)) {
+                pendingHorizontal = null
+                focusTarget = null
+                focusRevision++
+            }
+            false
+        } else {
+            if (!saving && pendingHorizontal == null && key.action == NativeKey.ACTION_DOWN &&
                 horizontalPress.accept(key.eventTime, key.repeatCount)) {
-                val current = pendingHorizontal?.takeIf { it in keys } ?: focusedKey
+                // Do not advance from an unconfirmed destination: that skips cards.
+                val current = focusedKey
                 val index = keys.indexOf(current)
                 if (index >= 0) {
                     val next = keys[(index + direction).coerceIn(0, keys.lastIndex)]
@@ -189,7 +239,7 @@ internal fun HomeScreen(
         val desktopHeight = maxHeight
         val cardWidth = ((maxWidth - 64.dp - 12.dp * 7) / 8).coerceIn(88.dp, 125.dp)
         Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 18.dp)) {
-            TopBar(refreshSources, weatherReady, homeReset, onSettings = { launcherSettings = true })
+            TopBar(refreshSources, weatherReady, homeReset, settingsModifier = Modifier.focusRequester(settingsTrigger), onSettings = ::showSettings)
             Spacer(Modifier.height((desktopHeight * .19f).coerceIn(42.dp, 110.dp)))
             Column(Modifier.weight(1f).verticalScroll(desktopScroll)) {
                 shown.rows.forEach { row ->
@@ -199,11 +249,16 @@ internal fun HomeScreen(
                         val listState = rememberLazyListState()
                         LaunchedEffect(focusRevision) {
                             val rowKeys = rowApps.map(::keyOf) + "all-apps-${row.id}"
-                            val index = rowKeys.indexOf(focusTarget)
+                            val target = focusTarget
+                            val index = rowKeys.indexOf(target)
                             if (index >= 0) {
-                                listState.revealCard(index)
-                                withFrameNanos { }
-                                runCatching { requesters[focusTarget]?.requestFocus() }
+                                try {
+                                    listState.revealCard(index)
+                                    withFrameNanos { }
+                                    runCatching { requesters[target]?.requestFocus() }
+                                } finally {
+                                    if (pendingHorizontal == target) pendingHorizontal = null
+                                }
                             }
                         }
                         val addRequester = remember(row.id) { requesters.getOrPut("all-apps-${row.id}") { FocusRequester() } }
@@ -224,44 +279,8 @@ internal fun HomeScreen(
                     }
                 }
                 Text("Разъёмы", color = Color.White, fontSize = 19.sp)
-                val visibleSources = remember(sourceSnapshot, shown.sourceOrder, shown.hiddenSources) {
-                    val sourceById = sourceSnapshot.entries.associateBy { it.id }
-                    (shown.sourceOrder + sourceIds).distinct().filterNot { it in shown.hiddenSources }.mapNotNull(sourceById::get)
-                }
-                val portsState = rememberLazyListState()
-                LaunchedEffect(focusRevision) {
-                    val index = visibleSources.indexOfFirst { it.id == focusTarget }
-                    if (index >= 0) {
-                        portsState.revealCard(index)
-                        withFrameNanos { }
-                        runCatching { requesters[focusTarget]?.requestFocus() }
-                    }
-                }
-                fun openSource(source: TvSourceEntry) {
-                    if (source.kind == TvSourceKind.USB) usbExpanded = !usbExpanded
-                    else if (!SettingsRouter.source(context, source)) notice = "Прошивка не разрешила переключение входа"
-                }
-                LazyRow(modifier = rowNavigation(visibleSources.map { it.id }), state = portsState, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 7.dp, vertical = 10.dp)) {
-                    items(visibleSources, key = { it.id }) { source ->
-                        val card = CardMenu(source.id, source.label, true)
-                        PortTile(source.label, cardWidth, onFocus = { onCardFocus(card.key) },
-                            onClick = { if (editing == null && !saving) openSource(source) },
-                            connected = source.connected, kind = source.kind, status = source.detail,
-                            modifier = input(card) { openSource(source) }.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = tween(160)))
-                    }
-                }
-                if (visibleSources.isEmpty()) {
-                    Text(if (sourceSnapshot.entries.isEmpty()) "Доступные ТВ-входы и накопители не обнаружены"
-                        else "Все источники скрыты. Восстановить можно в настройках EZCH.",
-                        color = Color(0xFFB6C6DA), fontSize = 13.sp, modifier = Modifier.padding(8.dp))
-                }
-                if (usbExpanded && sourceSnapshot.usbVolumes.isEmpty()) ControlChip("Открыть файловый менеджер") { SettingsRouter.files(context) }
-                if (usbExpanded) sourceSnapshot.usbVolumes.forEach { volume ->
-                    ControlChip(volume.getDescription(context)) {
-                        if (!SettingsRouter.files(context, volume)) notice = "Файловый менеджер недоступен"
-                    }
-                }
+                PanelLaunchButton(tv = true, modifier = Modifier.padding(vertical = 10.dp)
+                    .focusRequester(sourcesTrigger), onClick = ::showSources)
                 if (editing != null || notice.isNotEmpty()) Text(
                     if (saving) "Сохраняем…" else editing?.let {
                         "${it.name}  ·  ← → переместить${if (it.source) "" else "  ·  ↑ ↓ другая строка"}  ·  OK сохранить  ·  Back отменить"
@@ -272,7 +291,7 @@ internal fun HomeScreen(
         }
     }
 
-    menu?.let { card ->
+    menu?.takeIf { !it.source }?.let { card ->
         CardActionPopup(card.name, card.source, cardBounds[card.key], press,
             onDismiss = { menu = null; press.reset(); request(card.key) },
             onMove = { begin(card) },
@@ -283,15 +302,67 @@ internal fun HomeScreen(
                 }
             })
     }
-    if (launcherSettings) AlertDialog(onDismissRequest = { launcherSettings = false },
-        modifier = Modifier.widthIn(max = 700.dp).fillMaxWidth(.92f),
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        title = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlassIcon("Настройки", color = Ice)
-            Column { Text("Настройки EZCH", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                Text("Рабочий стол, оформление и управление пультом", fontSize = 12.sp, color = Muted) }
-        } }, text = {
-            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp)) {
+    if (sourcesPanel) SidePanel("Разъёмы", PanelEdge.LEFT, "sources-panel", sourcesFirst,
+        closeModifier = if (visibleSources.isEmpty()) Modifier.focusRequester(sourcesFirst) else Modifier,
+        onBackWhileEditing = if (editing?.source == true) { { if (!saving) cancel() } } else null,
+        onDismiss = ::closeSources) {
+        LazyColumn(state = sourceList, modifier = Modifier.weight(1f).fillMaxWidth().testTag("sources-list")) {
+            items(visibleSources, key = { it.id }) { source ->
+                val card = CardMenu(source.id, source.label, true)
+                fun activate() {
+                    if (source.kind == TvSourceKind.USB) usbExpanded = !usbExpanded
+                    else if (!SettingsRouter.source(context, source)) notice = "Прошивка не разрешила переключение входа"
+                }
+                SourcePanelItem(source, modifier = input(card, ::activate)
+                    .then(if (source.id == visibleSources.first().id) Modifier.focusRequester(sourcesFirst) else Modifier)
+                    .onFocusChanged { if (it.isFocused) onCardFocus(card.key) },
+                    onClick = { if (editing == null && !saving) activate() })
+            }
+            if (visibleSources.isEmpty()) item {
+                Text("Все источники скрыты. Восстановите их кнопкой ниже.", color = Muted, fontSize = 13.sp)
+            }
+            if (usbExpanded) {
+                if (sourceSnapshot.usbVolumes.isEmpty()) item {
+                    SettingsItem("USB", "Открыть файловый менеджер", "Выберите файлы или папку накопителя.",
+                        modifier = Modifier.testTag("sources-usb-files")) { SettingsRouter.files(context) }
+                }
+                itemsIndexed(sourceSnapshot.usbVolumes, key = { index, volume ->
+                    "$index-${volume.uuid ?: volume.getDescription(context)}"
+                }) { _, volume ->
+                    SettingsItem("USB", volume.getDescription(context), "Открыть накопитель.") {
+                        if (!SettingsRouter.files(context, volume)) notice = "Файловый менеджер недоступен"
+                    }
+                }
+            }
+            if (saved.hiddenSources.isNotEmpty()) item {
+                SettingsItem("Экран", "Восстановить скрытые источники", "Вернуть карточки разъёмов.",
+                    "Скрыто: ${saved.hiddenSources.size}", enabled = !saving) { commit(saved.copy(hiddenSources = emptyList())) }
+            }
+            if (notice.isNotEmpty()) item { Text(notice, color = Gold, fontSize = 12.sp) }
+            if (editing?.source == true) item {
+                Text("← → переместить  ·  OK сохранить  ·  Back отменить", color = Gold, fontSize = 12.sp)
+            }
+        }
+        menu?.takeIf { it.source }?.let { card ->
+            CardActionPopup(card.name, true, cardBounds[card.key], press,
+                onDismiss = { menu = null; press.reset(); request(card.key) }, onMove = { begin(card) },
+                onHide = {
+                    menu = null; press.reset()
+                    commit(saved.hideSource(card.key)) {
+                        val next = visibleSources.firstOrNull { it.id != card.key }
+                        if (next != null) request(next.id) else scope.launch {
+                            withFrameNanos { }
+                            sourcesFirst.requestFocus()
+                        }
+                    }
+                })
+        }
+    }
+    if (launcherSettings) SidePanel("Настройки", PanelEdge.RIGHT, "settings-panel", settingsFirst,
+        onDismiss = ::closeSettings) {
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+            .testTag("settings-list")) {
+            ConnectionSettings(refreshSources, Modifier.focusRequester(settingsFirst))
                 SettingsSection("Главный экран и пульт")
                 SettingsItem("Домой", "Главный экран", "Открывать EZCH при нажатии Home.",
                     if (HomeRole.isHome(context)) "Назначен" else "Выбрать") { HomeRole.request(context) }
@@ -300,14 +371,14 @@ internal fun HomeScreen(
                     .getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
                     .any { android.content.ComponentName.unflattenFromString(it.id) == service } }.getOrDefault(false)
                 SettingsItem("Домой", "Кнопка Home", "Дополнительная служба: короткое нажатие возвращает домой, длинное открывает меню.",
-                    if (helperEnabled) "Включена" else "По желанию") { SettingsRouter.accessibility(context) }
+                    if (helperEnabled) "Включена" else "По желанию") { HomeRole.request(context) }
                 SettingsItem("Настройки", "Настройки телевизора", "Сеть, Bluetooth, звук, экран и другие параметры Android.") { SettingsRouter.settings(context) }
                 SettingsSection("Оформление и обои")
                 WallpaperControls { onPremiumChange(true) }
                 SettingsSection("Приложения и рабочий стол")
                 SettingsItem("Папка", "Файловый менеджер / USB", "Открыть накопитель, скопировать файлы или установить APK.") { context.startActivity(Intent(context, FileBrowserActivity::class.java)) }
-                SettingsItem("Строки", "Все приложения / восстановить скрытые", "Вернуть скрытые значки на рабочий стол.", "Скрыто: ${saved.hiddenApps.size}") { launcherSettings = false; allApps = true }
-                SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { launcherSettings = false; rowTitle = ""; addRow = true }
+                SettingsItem("Строки", "Все приложения / восстановить скрытые", "Вернуть скрытые значки на рабочий стол.", "Скрыто: ${saved.hiddenApps.size}") { allApps = true }
+                SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { rowTitle = ""; addRow = true }
                 saved.rows.forEachIndexed { index, row ->
                     SettingsSection("Строка: ${row.title}")
                     Row {
@@ -316,39 +387,37 @@ internal fun HomeScreen(
                         TextButton(enabled = !saving && saved.rows.size > 1, onClick = { commit(saved.removeRow(row.id)) }) { Text("Убрать") }
                     }
                 }
-                if (saved.hiddenSources.isNotEmpty()) SettingsItem("Экран", "Восстановить скрытые источники", "Вернуть скрытые карточки разъёмов.", "Скрыто: ${saved.hiddenSources.size}", enabled = !saving) { commit(saved.copy(hiddenSources = emptyList())) }
-            }
-        }, confirmButton = { TextButton(onClick = { launcherSettings = false }) { Text("Закрыть") } })
+                
+        }
+    }
     if (addRow) AlertDialog(onDismissRequest = { if (!saving) addRow = false }, title = { Text("Новая строка") },
         text = { OutlinedTextField(rowTitle, { rowTitle = it.take(40) }, label = { Text("Название") }, singleLine = true) },
         confirmButton = { TextButton(enabled = rowTitle.isNotBlank() && !saving, onClick = {
             commit(saved.addRow(rowTitle.trim(), java.util.UUID.randomUUID().toString())) { addRow = false }
         }) { Text("Добавить") } }, dismissButton = { TextButton(enabled = !saving, onClick = { addRow = false }) { Text("Отмена") } })
-    if (allApps) AlertDialog(onDismissRequest = { allApps = false }, title = { Text("Все приложения") }, text = {
-        LazyColumn(Modifier.heightIn(max = 330.dp)) {
-            items(apps, key = ::keyOf) { app ->
-                val key = keyOf(app)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(modifier = Modifier.weight(1f), onClick = { allApps = false; onLaunch(app) }) { Text(app.name) }
-                    TextButton(enabled = !saving, onClick = {
-                        if (key in saved.hiddenApps) commit(saved.restoreApp(key)) else commit(saved.hideApp(key))
-                    }) { Text(if (key in saved.hiddenApps) "Вернуть" else "Скрыть") }
-                }
-            }
-        }
-    }, confirmButton = { TextButton(onClick = { allApps = false }) { Text("Закрыть") } })
+    if (allApps) AllAppsDialog(apps, saved.hiddenApps, saving,
+        onDismiss = {
+            allApps = false
+            if (!launcherSettings) focusedKey?.let(::request)
+        }, onLaunch = { app -> allApps = false; onLaunch(app) },
+        onToggle = { app ->
+            val key = keyOf(app)
+            if (key in saved.hiddenApps) commit(saved.restoreApp(key)) else commit(saved.hideApp(key))
+        })
 }
 
 @Composable
 private fun DesktopAddTile(title: String, width: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, onFocus: () -> Unit = {}, action: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(160), label = "allAppsFocus")
-    Column(modifier.width(width).height(94.dp).scale(scale).clip(DesktopShape)
-        .border(if (focused) 4.dp else 1.dp, if (focused) Color(0xFF48B9FF) else Color(0xFF34455B), DesktopShape)
-        .onFocusChanged { focused = it.isFocused; if (focused) onFocus() }.background(Color(0xB0101C29), DesktopShape)
-        .clickable(onClick = action).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "allAppsHalo")
+    Column(modifier.width(width * AppCardScale).height(94.dp * AppCardScale).graphicsLayer { scaleX = scale; scaleY = scale }
+        .focusHalo({ glow }).clip(AppCardShape)
+        .border(if (focused) 4.dp else 1.dp, if (focused) Color(0xFF48B9FF) else Color(0xFF34455B), AppCardShape)
+        .onFocusChanged { focused = it.isFocused; if (focused) onFocus() }.background(Color(0x66101C29), AppCardShape)
+        .clickable(onClick = action).padding(8.dp * AppCardScale), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center) {
-        Text("+", color = Color(0xFFB6D9FF), fontSize = 30.sp)
+        Text("+", color = Color(0xFFB6D9FF), fontSize = 25.sp)
         Text(title, color = Color.White, fontSize = 11.sp)
     }
 }
@@ -358,19 +427,21 @@ private suspend fun LazyListState.revealCard(index: Int) {
     val info = layoutInfo
     val items = info.visibleItemsInfo
     if (items.isEmpty()) { scrollToItem(index); return }
+    val start = info.viewportStartOffset + info.beforeContentPadding
+    val end = info.viewportEndOffset - info.afterContentPadding
     val target = items.firstOrNull { it.index == index }
     val delta = if (target != null) {
         when {
-            target.offset < info.viewportStartOffset -> target.offset - info.viewportStartOffset
-            target.offset + target.size > info.viewportEndOffset -> target.offset + target.size - info.viewportEndOffset
+            target.offset < start -> target.offset - start
+            target.offset + target.size > end -> target.offset + target.size - end
             else -> 0
         }
     } else if (index == items.last().index + 1) {
         val last = items.last()
-        last.offset + last.size * 2 + info.mainAxisItemSpacing - info.viewportEndOffset
+        last.offset + last.size * 2 + info.mainAxisItemSpacing - end
     } else if (index == items.first().index - 1) {
         val first = items.first()
-        first.offset - first.size - info.mainAxisItemSpacing - info.viewportStartOffset
+        first.offset - first.size - info.mainAxisItemSpacing - start
     } else { scrollToItem(index); return }
     if (delta != 0) animateScrollBy(delta.toFloat(), tween(80))
 }

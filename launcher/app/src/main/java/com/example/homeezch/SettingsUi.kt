@@ -25,16 +25,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Layered translucent strokes approximate diffuse light without bitmap blur or extra textures. */
-internal fun Modifier.focusHalo(intensity: Float, accent: Color = Ice): Modifier = focusHalo({ intensity }, accent)
+@Composable internal fun Modifier.focusHalo(intensity: Float, accent: Color = Ice): Modifier = focusHalo({ intensity }, accent)
 
 /** Read animated intensity in drawing, avoiding composition on every animation frame. */
-internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifier = drawBehind {
+@Composable internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifier {
+    if (!LocalRenderProfile.current.heavyEffects) return this
+    return drawBehind {
     val intensity = level()
     if (intensity > .01f) for (ring in 12 downTo 1) {
         val spread = ring.dp.toPx()
         drawRoundRect(accent.copy(alpha = intensity * .035f * (13 - ring) / 12f),
             Offset(-spread, -spread), Size(size.width + 2 * spread, size.height + 2 * spread),
             CornerRadius(18.dp.toPx() + spread), style = Stroke(2.dp.toPx()))
+    }
     }
 }
 

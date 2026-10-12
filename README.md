@@ -1,8 +1,8 @@
-# EZCH Launcher 0.26 / Update 1.6.4
+# EZCH Launcher 0.27 / Update 1.6.4
 
-Выпуск 0.26 основан на восстановленных исходниках Launcher 0.25. [Изменения, проверки и ограничения 0.26](RELEASE_0.26_RU.md).
+Рабочая версия 0.27 продолжает опубликованную 0.26 и восстановленные исходники 0.25. [Изменения и сверка с полным ТЗ](RELEASE_0.27_RU.md). Добавлены общая политика облегчения эффектов, удаление/возврат карточек, выбор строки, переименование и сведения USB. Подтверждение на физической приставке пока ограничено HDMI standby.
 
-Launcher: `com.example.homeezch.usb`, versionCode 27, versionName 0.26-USB. Update: `com.example.ezchupdate.tvtest`, versionCode 25, versionName 1.6.4. Android 8.0+ (API 26), штатные HOME/TV/file/installation API.
+Launcher: `com.example.homeezch.usb`, versionCode 28, versionName 0.27-USB. Update: `com.example.ezchupdate.tvtest`, versionCode 25, versionName 1.6.4. Android 8.0+ (API 26), штатные HOME/TV/file/installation API.
 
 Источники раскрываются последовательным горизонтальным рядом. Автоматически показываются объявленные системой входы и доступные накопители; ручные ярлыки добавляются в настройках. Верхняя шестерёнка раскрывает компактные настройки. Auto выбирает Lite при RAM ≤ 1,5 ГиБ или признаке low-RAM. Погода MET Norway сохраняет последний прогноз и соблюдает ограничения запросов.
 
@@ -23,7 +23,7 @@ JDK 17+, Android SDK Platform 37.0, Build Tools 36.0.0. Локальный сц�
 Подпись выпуска использует существующий локальный каталог владельца с `ezch-update-release.jks` и необходимыми свойствами. Приватный ключ и пароли не входят в исходники:
 
 ```powershell
-./scripts/build-release.ps1 -Module launcher -SigningProject C:\Path\To\PrivateSigning -Output ./dist/EZCH_Launcher_0.26_USB.apk
+./scripts/build-release.ps1 -Module launcher -SigningProject C:\Path\To\PrivateSigning -Output ./dist/EZCH_Launcher_0.27_USB.apk
 ./scripts/build-release.ps1 -Module app -SigningProject C:\Path\To\PrivateSigning -Output ./dist/EZCH_Update_1.6.4.apk
 ```
 

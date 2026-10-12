@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -98,6 +99,7 @@ class FileBrowserActivity : ComponentActivity() {
             BackHandler(folder!=null) { if(!busy)back() }
             Column(Modifier.fillMaxSize().background(Color(0xFF08111D)).padding(24.dp)) {
                 Text("Файлы EZCH",style=MaterialTheme.typography.headlineMedium);Text(folder ?: "Выберите накопитель")
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { item {
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     FileButton({ startActivity(Intent(this@FileBrowserActivity, DocumentBrowserActivity::class.java)) },enabled=!busy) { Text("Выбрать папку / USB") }
                     FileButton({ if(folder==null)finish() else back() },enabled=!busy) { Text("Назад") }
@@ -107,16 +109,17 @@ class FileBrowserActivity : ComponentActivity() {
                         FileButton({ name="";command="mkdir" },modifier=if(files.isEmpty())Modifier.focusRequester(first) else Modifier,enabled=!busy) { Text("Новая папка") }
                         clipboard?.let { clip -> FileButton({ val dest=folder!!;perform { FileOperations.copy(clip.first,File(dest),clip.second) };clipboard=null },enabled=!busy) { Text("Вставить") } }
                     }
+                } }
                 }
                 if(!granted) {
                     Text("Разрешите встроенному проводнику доступ к файлам в настройках Android.")
                     FileButton({ grantAccess() },Modifier.focusRequester(first)) { Text("Разрешить доступ к файлам") }
                 }
                 if(folder == null && granted) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Загрузки" to Environment.DIRECTORY_DOWNLOADS, "Видео" to Environment.DIRECTORY_MOVIES,
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("Загрузки" to Environment.DIRECTORY_DOWNLOADS, "Видео" to Environment.DIRECTORY_MOVIES,
                             "Музыка" to Environment.DIRECTORY_MUSIC, "Изображения" to Environment.DIRECTORY_PICTURES,
-                            "APK" to Environment.DIRECTORY_DOWNLOADS, "Документы" to Environment.DIRECTORY_DOCUMENTS).forEach { (title, directory) ->
+                            "APK" to Environment.DIRECTORY_DOWNLOADS, "Документы" to Environment.DIRECTORY_DOCUMENTS)) { (title, directory) ->
                             FileButton({ onlyApks = title == "APK"; folder = Environment.getExternalStoragePublicDirectory(directory).path }, enabled = !busy) {
                                 Text(title, color = Color(0xFF8CDAFF))
                             }
@@ -150,6 +153,9 @@ class FileBrowserActivity : ComponentActivity() {
             }
             selected?.let { file -> if(command==null) AlertDialog(onDismissRequest={selected=null},title={Text(file.name)},text={Column {
                 Text(if(file.isDirectory) "Папка" else "${file.length()} байт")
+                Text(file.path, style = MaterialTheme.typography.bodySmall)
+                Text("Изменено: ${java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.forLanguageTag("ru")).format(java.util.Date(file.lastModified()))}", style = MaterialTheme.typography.bodySmall)
+                Text(if (file.canWrite()) "Доступны изменения" else "Только чтение", style = MaterialTheme.typography.bodySmall)
                 TextButton({clipboard=file to false;selected=null}) { Text("Копировать") }
                 TextButton({clipboard=file to true;selected=null}) { Text("Вырезать") }
                 TextButton({name=file.name;command="rename"}) { Text("Переименовать") }

@@ -93,7 +93,7 @@ internal fun GlassSourceCard(source: TvSourceEntry, recent: Boolean, onClick: ()
                     drawCircle(c.copy(alpha = .6f), h * .085f, center, style = Stroke(1.dp.toPx()))
                 }
             }
-            TvSourceKind.TV -> {
+            TvSourceKind.TV, TvSourceKind.OTHER -> {
                 drawRoundRect(Color(0xFF020B1D), Offset(w * .12f, h * .05f), Size(w * .76f, h * .68f), CornerRadius(3.dp.toPx()))
                 drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF37AFFF), Color(0xFF113C81))), Offset(w * .15f, h * .09f), Size(w * .7f, h * .6f), CornerRadius(2.dp.toPx()))
                 val mountains = Path().apply { moveTo(w * .15f, h * .58f); lineTo(w * .37f, h * .24f); lineTo(w * .53f, h * .47f); lineTo(w * .68f, h * .33f); lineTo(w * .85f, h * .6f); lineTo(w * .85f, h * .69f); lineTo(w * .15f, h * .69f); close() }

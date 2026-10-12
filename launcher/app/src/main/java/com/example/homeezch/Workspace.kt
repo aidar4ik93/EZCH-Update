@@ -5,13 +5,14 @@ internal data class Workspace(
     val rows: List<AppShelf>,
     val hiddenApps: List<String> = emptyList(),
     val sourceOrder: List<String> = emptyList(),
-    val hiddenSources: List<String> = emptyList()
+    val hiddenSources: List<String> = emptyList(),
+    val removedApps: List<String> = emptyList()
 ) {
     fun discover(available: List<String>): Workspace {
         val seen = mutableSetOf<String>()
-        val cleaned = rows.map { row -> row.copy(appKeys = row.appKeys.filter { seen.add(it) }) }
+        val cleaned = rows.map { row -> row.copy(appKeys = row.appKeys.filter { it !in removedApps && seen.add(it) }) }
             .ifEmpty { listOf(AppShelf("main", "Приложения", emptyList())) }
-        val fresh = available.filter { it !in hiddenApps && seen.add(it) }
+        val fresh = available.filter { it !in hiddenApps && it !in removedApps && seen.add(it) }
         return copy(rows = cleaned.mapIndexed { i, row ->
             if (i == 0) row.copy(appKeys = row.appKeys + fresh) else row
         })
@@ -58,15 +59,33 @@ internal data class Workspace(
     }
     fun hideApp(key: String) = copy(hiddenApps = (hiddenApps + key).distinct())
     fun hideSource(key: String) = copy(hiddenSources = (hiddenSources + key).distinct())
-    fun restoreApp(key: String) = copy(hiddenApps = hiddenApps - key)
+    fun removeApp(key: String) = copy(rows = rows.map { it.copy(appKeys = it.appKeys - key) },
+        hiddenApps = hiddenApps - key, removedApps = (removedApps + key).distinct())
+    fun restoreApp(key: String): Workspace {
+        val target = rows.firstOrNull()?.id ?: return this
+        return if (rows.any { key in it.appKeys }) copy(hiddenApps = hiddenApps - key, removedApps = removedApps - key)
+            else placeApp(key, target)
+    }
+    fun placeApp(key: String, rowId: String): Workspace {
+        if (rows.none { it.id == rowId }) return this
+        return copy(rows = rows.map { row ->
+            if (row.id == rowId) row.copy(appKeys = if (key in row.appKeys) row.appKeys else row.appKeys + key)
+            else row.copy(appKeys = row.appKeys - key)
+        }, hiddenApps = hiddenApps - key, removedApps = removedApps - key)
+    }
     fun favorite(key: String): Workspace {
         if (rows.none { key in it.appKeys }) return this
         val target = rows.firstOrNull { it.id == "favorites" } ?: AppShelf("favorites", "Избранное", emptyList())
         val other = rows.filterNot { it.id == target.id }.map { it.copy(appKeys = it.appKeys - key) }
         return copy(rows = listOf(target.copy(appKeys = (target.appKeys + key).distinct())) + other,
-            hiddenApps = hiddenApps - key)
+            hiddenApps = hiddenApps - key, removedApps = removedApps - key)
     }
     fun addRow(title: String, id: String) = copy(rows = rows + AppShelf(id, title, emptyList()))
+    fun renameRow(id: String, title: String): Workspace {
+        val clean = title.trim().take(40)
+        if (clean.isEmpty()) return this
+        return copy(rows = rows.map { if (it.id == id) it.copy(title = clean) else it })
+    }
     fun moveRow(id: String, delta: Int): Workspace {
         val i = rows.indexOfFirst { it.id == id }; val j = i + delta
         if (i < 0 || j !in rows.indices) return this

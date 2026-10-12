@@ -22,19 +22,19 @@ class HomeResetTest {
         ui.waitForIdle()
     }
     private fun longOk() {
-        ui.onNodeWithText("EZCH Store").assertIsFocused().performKeyInput {
+        ui.onNodeWithText("Магазин EZCH").assertIsFocused().performKeyInput {
             keyDown(Key.DirectionCenter); advanceEventTime(650); keyUp(Key.DirectionCenter)
         }
     }
     @Test fun homeClosesMenuAndReturnsFocusToStart() {
-        ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(10000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
         longOk()
         ui.onNodeWithText("Скрыть с рабочего стола").assertExists()
         ui.runOnUiThread {
             ui.activity.startActivity(Intent(ui.activity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         }
         ui.waitUntil(10000) { ui.onAllNodesWithText("Скрыть с рабочего стола").fetchSemanticsNodes().isEmpty() }
-        ui.onNodeWithText("EZCH Store").assertIsFocused()
+        ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         longOk()
         ui.onNodeWithText("Переместить приложение").assertExists()
     }
@@ -43,11 +43,11 @@ class HomeResetTest {
         val prefs = ui.activity.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
         val original = prefs.getString("workspace_v1", null)
         try {
-            ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+            ui.waitUntil(10000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
             repeat(2) {
                 longOk()
                 ui.onNodeWithText("Переместить приложение").performClick()
-                ui.onNodeWithText("EZCH Store").performKeyInput {
+                ui.onNodeWithText("Магазин EZCH").performKeyInput {
                     pressKey(Key.DirectionRight)
                     pressKey(Key.DirectionCenter)
                 }
@@ -55,7 +55,7 @@ class HomeResetTest {
                     ui.onAllNodesWithText("Сохраняем…", substring = true).fetchSemanticsNodes().isEmpty() &&
                         ui.onAllNodesWithText("OK сохранить", substring = true).fetchSemanticsNodes().isEmpty()
                 }
-                ui.onNodeWithText("EZCH Store").assertIsFocused()
+                ui.onNodeWithText("Магазин EZCH").assertIsFocused()
             }
             longOk()
             ui.onNodeWithText("Переместить приложение").assertExists()
@@ -64,7 +64,7 @@ class HomeResetTest {
                 pressKey(Key.DirectionCenter)
             }
             ui.waitUntil(10000) { "ezch-store" in WorkspacePrefs.load(ui.activity).hiddenApps }
-            ui.onAllNodesWithText("EZCH Store").assertCountEquals(0)
+            ui.onAllNodesWithText("Магазин EZCH").assertCountEquals(0)
         } finally { prefs.edit().putString("workspace_v1", original).commit() }
     }
 
@@ -73,8 +73,8 @@ class HomeResetTest {
         val now = android.os.SystemClock.uptimeMillis()
         fun send(action: Int, repeat: Int, time: Long) = instrumentation.sendKeySync(
             android.view.KeyEvent(now, time, action, android.view.KeyEvent.KEYCODE_DPAD_CENTER, repeat))
-        ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
-        ui.onNodeWithText("EZCH Store").assertIsFocused()
+        ui.waitUntil(10000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         send(android.view.KeyEvent.ACTION_DOWN, 0, now)
         send(android.view.KeyEvent.ACTION_DOWN, 1, now + 650)
         ui.waitUntil(10000) { ui.onAllNodesWithText("Скрыть с рабочего стола").fetchSemanticsNodes().isNotEmpty() }
@@ -87,7 +87,7 @@ class HomeResetTest {
     }
 
     @Test fun thirtyMenuCyclesKeepFocusAndLeaveWorkspaceUnchanged() {
-        ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(10000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
         val prefs = ui.activity.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
         val original = prefs.getString("workspace_v1", null)
         val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
@@ -98,7 +98,7 @@ class HomeResetTest {
             ui.onNodeWithText("Скрыть с рабочего стола").assertIsFocused()
             instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
             ui.waitForIdle()
-            ui.onNodeWithText("EZCH Store").assertIsFocused()
+            ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         }
         org.junit.Assert.assertEquals(original, prefs.getString("workspace_v1", null))
     }

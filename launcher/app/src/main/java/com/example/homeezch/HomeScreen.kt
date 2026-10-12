@@ -70,8 +70,16 @@ internal fun HomeScreen(
     var allApps by remember { mutableStateOf(false) }
     var addRow by remember { mutableStateOf(false) }
     var rowTitle by remember { mutableStateOf("") }
+    var renameRowId by remember { mutableStateOf<String?>(null) }
+    var placing by remember { mutableStateOf<LaunchApp?>(null) }
     var sourceSnapshot by remember { mutableStateOf(TvSourcesSnapshot(emptyList(), emptyList())) }
     var usbExpanded by remember { mutableStateOf(false) }
+    var usbDetails by remember { mutableStateOf<List<UsbVolumeDetails>>(emptyList()) }
+    LaunchedEffect(usbExpanded, sourceSnapshot.usbVolumes) {
+        if (usbExpanded) usbDetails = withContext(Dispatchers.IO) {
+            sourceSnapshot.usbVolumes.map { usbVolumeDetails(context, it) }
+        } else usbDetails = emptyList()
+    }
     var focusTarget by remember { mutableStateOf<String?>(null) }
     var focusRevision by remember { mutableIntStateOf(0) }
     var notice by remember { mutableStateOf("") }
@@ -129,7 +137,7 @@ internal fun HomeScreen(
         sourceSnapshot = withContext(Dispatchers.IO) { scanTvSources(context) }
         if (sourceSnapshot.usbVolumes.isEmpty()) usbExpanded = false
         if (context.getSharedPreferences("home_setup", android.content.Context.MODE_PRIVATE).getBoolean("setup_reviewed_v24", false)) {
-            sourceSnapshot.entries.firstOrNull { it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }?.let { tuner ->
+            sourceSnapshot.entries.firstOrNull { it.tunerAutoStartEligible }?.let { tuner ->
                 if (SourceSettings.consumeTunerStart(context) && !SettingsRouter.source(context, tuner)) notice = "Автозапуск ТВ ограничен прошивкой"
             }
         }
@@ -148,6 +156,7 @@ internal fun HomeScreen(
     LaunchedEffect(homeReset, appsReady, saving) {
         if (homeReset > 0 && appsReady && !saving) {
             menu = null; launcherSettings = false; sourcesPanel = false; allApps = false; addRow = false
+            placing = null; renameRowId = null
             editing = null; draft = saved; usbExpanded = false; press.reset(); pendingHorizontal = null
             desktopScroll.scrollTo(0)
             val row = saved.rows.first()
@@ -271,7 +280,7 @@ internal fun HomeScreen(
                             }
                         }
                         val addRequester = remember(row.id) { requesters.getOrPut("all-apps-${row.id}") { FocusRequester() } }
-                        LazyRow(modifier = rowNavigation(rowApps.map(::keyOf) + "all-apps-${row.id}"), state = listState, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        LazyRow(modifier = rowNavigation(rowApps.map(::keyOf) + "all-apps-${row.id}").testTag("app-row-${row.id}"), state = listState, horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 18.dp)) {
                             items(rowApps, key = ::keyOf) { app ->
                                 val card = CardMenu(keyOf(app), app.name, false)
@@ -327,6 +336,13 @@ internal fun HomeScreen(
                     saved.rows.flatMap { it.appKeys }.firstOrNull { it in byKey && it !in saved.hiddenApps }?.let(::request)
                 }
             }, onFavorite = { menu = null; press.reset(); commit(saved.favorite(card.key)) { request(card.key) } },
+            onRemove = {
+                menu = null; press.reset()
+                commit(saved.removeApp(card.key)) {
+                    val first = saved.rows.first()
+                    request(first.appKeys.firstOrNull { it in byKey && it !in saved.hiddenApps } ?: "all-apps-${first.id}")
+                }
+            },
             onInfo = byKey[card.key]?.component?.let { component -> { menu = null
                 SettingsRouter.open(context, listOf(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     android.net.Uri.parse("package:${component.packageName}"))))
@@ -340,13 +356,16 @@ internal fun HomeScreen(
                 commit(saved.hideSource(card.key)) {
                     visibleSources.firstOrNull { it.id != card.key }?.let { request(it.id) } ?: closeSources()
                 }
-            }, onAutoStart = if (sourceSnapshot.entries.any { it.id == card.key && it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }) {
+            }, onAutoStart = if (sourceSnapshot.entries.any { it.id == card.key && it.tunerAutoStartEligible }) {
                 { SourceSettings.setTunerAutoStart(context, !SourceSettings.tunerAutoStart(context)); menu = null; request(card.key) }
             } else null, autoStart = SourceSettings.tunerAutoStart(context))
     }
     if (usbExpanded) AlertDialog(onDismissRequest = { usbExpanded = false }, title = { Text("USB / накопители") },
-        text = { Column { sourceSnapshot.usbVolumes.forEach { volume ->
-            TextButton(onClick = { usbExpanded = false; SettingsRouter.files(context, volume) }) { Text(volume.getDescription(context)) }
+        text = { Column { if (usbDetails.isEmpty()) Text("Читаем сведения о накопителях…")
+            usbDetails.forEach { details ->
+            TextButton(onClick = { usbExpanded = false; SettingsRouter.files(context, details.volume) }) {
+                Column { Text(details.name); Text(details.capacity, fontSize = 11.sp) }
+            }
         } } }, confirmButton = { TextButton(onClick = { usbExpanded = false }) { Text("Закрыть") } })
     if (launcherSettings) SidePanel("Настройки", PanelEdge.RIGHT, "settings-panel", settingsFirst,
         onDismiss = ::closeSettings) {
@@ -364,7 +383,7 @@ internal fun HomeScreen(
                     if (helperEnabled) "Включена" else "По желанию") { HomeRole.request(context) }
                 SettingsItem("Настройки", "Настройки телевизора", "Сеть, Bluetooth, звук, экран и другие параметры Android.") { SettingsRouter.settings(context) }
                 SettingsSection("Источники и автозапуск")
-                val tunerAvailable = sourceSnapshot.entries.any { it.kind == TvSourceKind.TV && !it.id.startsWith("manual-") }
+                val tunerAvailable = sourceSnapshot.entries.any { it.tunerAutoStartEligible }
                 var autoTuner by remember { mutableStateOf(SourceSettings.tunerAutoStart(context)) }
                 SettingsItem("Домой", "Запускать ТВ при включении", "Один раз после загрузки устройства. Только для доступного системного тюнера.",
                     if (autoTuner) "Включено" else "Выключено", enabled = tunerAvailable) {
@@ -387,12 +406,13 @@ internal fun HomeScreen(
                 SettingsSection("Приложения и рабочий стол")
                 SettingsItem("Папка", "Файловый менеджер / USB", "Открыть накопитель, скопировать файлы или установить APK.") { context.startActivity(Intent(context, FileBrowserActivity::class.java)) }
                 SettingsItem("Строки", "Все приложения / восстановить скрытые", "Вернуть скрытые значки на рабочий стол.", "Скрыто: ${saved.hiddenApps.size}") { allApps = true }
-                SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { rowTitle = ""; addRow = true }
+                SettingsItem("Строки", "Добавить строку приложений", "Создать отдельную строку, например для фильмов или игр.", "Строк: ${saved.rows.size}") { rowTitle = ""; renameRowId = null; addRow = true }
                 SettingsSection("Об устройстве и поддержка")
                 val memoryInfo = remember { android.app.ActivityManager.MemoryInfo().also {
                     context.getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(it)
                 } }
-                Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}\nОЗУ: ${"%.2f".format(memoryInfo.totalMem / 1073741824.0)} ГБ · EZCH 0.26", color = Muted, fontSize = 12.sp)
+                Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}\nОЗУ: ${"%.2f".format(memoryInfo.totalMem / 1073741824.0)} ГБ · EZCH ${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp)
+                Text(LocalRenderProfile.current.reason, color = Muted, fontSize = 12.sp)
                 SettingsItem("Домой", "Поддержка EZCH", "Telegram-канал проекта.") {
                     SettingsRouter.open(context, listOf(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/+huiJDfK5jdA4NzQy"))))
                 }
@@ -403,15 +423,17 @@ internal fun HomeScreen(
                         TextButton(enabled = !saving && index < saved.rows.lastIndex, onClick = { commit(saved.moveRow(row.id, 1)) }) { Text("Ниже") }
                         TextButton(enabled = !saving && saved.rows.size > 1, onClick = { commit(saved.removeRow(row.id)) }) { Text("Убрать") }
                     }
+                    TextButton(enabled = !saving, onClick = { renameRowId = row.id; rowTitle = row.title; addRow = true }) { Text("Переименовать строку") }
                 }
                 
         }
     }
-    if (addRow) AlertDialog(onDismissRequest = { if (!saving) addRow = false }, title = { Text("Новая строка") },
+    if (addRow) AlertDialog(onDismissRequest = { if (!saving) addRow = false }, title = { Text(if (renameRowId == null) "Новая строка" else "Название строки") },
         text = { OutlinedTextField(rowTitle, { rowTitle = it.take(40) }, label = { Text("Название") }, singleLine = true) },
         confirmButton = { TextButton(enabled = rowTitle.isNotBlank() && !saving, onClick = {
-            commit(saved.addRow(rowTitle.trim(), java.util.UUID.randomUUID().toString())) { addRow = false }
-        }) { Text("Добавить") } }, dismissButton = { TextButton(enabled = !saving, onClick = { addRow = false }) { Text("Отмена") } })
+            val rowId = renameRowId
+            commit(if (rowId == null) saved.addRow(rowTitle.trim(), java.util.UUID.randomUUID().toString()) else saved.renameRow(rowId, rowTitle)) { addRow = false }
+        }) { Text(if (renameRowId == null) "Добавить" else "Сохранить") } }, dismissButton = { TextButton(enabled = !saving, onClick = { addRow = false }) { Text("Отмена") } })
     if (allApps) AllAppsDialog(apps, saved.hiddenApps, saving,
         onDismiss = {
             allApps = false
@@ -419,8 +441,16 @@ internal fun HomeScreen(
         }, onLaunch = { app -> allApps = false; onLaunch(app) },
         onToggle = { app ->
             val key = keyOf(app)
-            if (key in saved.hiddenApps) commit(saved.restoreApp(key)) else commit(saved.hideApp(key))
-        })
+            if (key in saved.hiddenApps || key in saved.removedApps) commit(saved.restoreApp(key)) else commit(saved.hideApp(key))
+        }, removed = saved.removedApps, onPlace = { placing = it })
+    placing?.let { app -> AlertDialog(onDismissRequest = { if (!saving) placing = null },
+        title = { Text("Строка для ${app.name}") }, text = {
+            Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                saved.rows.forEach { row -> TextButton(enabled = !saving, onClick = {
+                    commit(saved.placeApp(keyOf(app), row.id)) { placing = null }
+                }) { Text(row.title) } }
+            }
+        }, confirmButton = { TextButton(enabled = !saving, onClick = { placing = null }) { Text("Отмена") } }) }
 }
 
 @Composable

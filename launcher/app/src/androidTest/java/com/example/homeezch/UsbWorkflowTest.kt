@@ -56,12 +56,11 @@ class UsbWorkflowTest {
     @Test fun fileBrowserAndUpdaterAreBundledAndOpenFromDesktop() {
         context.getSharedPreferences("home_setup", Context.MODE_PRIVATE).edit().putBoolean("home_prompt_v09", true).commit()
         startHome()
-        device.executeShellCommand("appops set ${context.packageName} MANAGE_EXTERNAL_STORAGE allow")
         val files = device.wait(Until.findObject(By.text("Файловый менеджер")), 10_000)
         assertNotNull(files); files.click()
         assertTrue(device.wait(Until.hasObject(By.text("Выбрать папку / USB")), 5000))
         startHome()
-        val updater = device.wait(Until.findObject(By.text("EZCH Store")), 5000)
+        val updater = device.wait(Until.findObject(By.text("Магазин EZCH")), 5000)
         assertNotNull(updater); updater.click()
         assertTrue(device.wait(Until.hasObject(By.text("Проверить обновления")), 15000))
     }

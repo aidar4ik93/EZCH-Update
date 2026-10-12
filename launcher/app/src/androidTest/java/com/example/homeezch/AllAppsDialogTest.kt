@@ -45,11 +45,11 @@ class AllAppsDialogTest {
         var hidden by mutableStateOf(listOf("ezch-store"))
         ui.setContent {
             MaterialTheme {
-                AllAppsDialog(listOf(LaunchApp("EZCH Store", null)), hidden, false, {}, {}, { hidden = emptyList() })
+                AllAppsDialog(listOf(LaunchApp("Магазин EZCH", null)), hidden, false, {}, {}, { hidden = emptyList() })
             }
         }
         ui.onNodeWithText("Вернуть на рабочий стол").performClick()
         ui.onNodeWithText("Скрыть с рабочего стола").assertExists()
-        ui.onNodeWithContentDescription("EZCH Store").assertExists()
+        ui.onNodeWithContentDescription("Магазин EZCH").assertExists()
     }
 }

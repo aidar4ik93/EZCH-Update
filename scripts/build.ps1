@@ -13,7 +13,10 @@ if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
 }
 if ($Release) {
     & (Join-Path $PSScriptRoot 'build-release.ps1')
-    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory 'dist/EZCH_Launcher_0.26_USB.apk')
+    $launcherBuild = Get-Content -Raw -LiteralPath (Join-Path $projectDirectory 'launcher/app/build.gradle.kts')
+    $launcherVersion = [regex]::Match($launcherBuild, 'versionName\s*=\s*"([^"\r\n]+)"').Groups[1].Value.Replace('-USB', '')
+    if ([string]::IsNullOrWhiteSpace($launcherVersion)) { throw 'Launcher release version is missing.' }
+    & (Join-Path $PSScriptRoot 'build-release.ps1') -Module launcher -Output (Join-Path $projectDirectory "dist/EZCH_Launcher_${launcherVersion}_USB.apk")
     return
 }
 Push-Location -LiteralPath $projectDirectory

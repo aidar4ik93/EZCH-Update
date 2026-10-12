@@ -94,6 +94,7 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
     mode == WallpaperMode.LITE || (mode == WallpaperMode.AUTO && (lowRam || savingPower))
 
 @Composable internal fun LiveWallpaper(premium: Boolean) {
+    val effects = LocalRenderProfile.current.heavyEffects
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     var choice by remember { mutableStateOf(WallpaperSettings.load(context)) }
@@ -145,13 +146,13 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (custom != null) Image(custom!!, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else if (choice.moving && choice.video == null && resumed && !powerSaving) {
+        else if (choice.moving && choice.video == null && resumed && !powerSaving && effects) {
             val transition = rememberInfiniteTransition(label = "cosmos")
             val motion by transition.animateFloat(1f, 1.025f, infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Reverse), label = "slowOrbit")
             Image(painterResource(R.drawable.cosmic_wallpaper), null, contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = motion; scaleY = motion })
         } else Image(painterResource(R.drawable.cosmic_wallpaper), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        if (choice.moving && choice.video != null && resumed && !powerSaving) key(choice.video, resumeGeneration) {
+        if (choice.moving && choice.video != null && resumed && !powerSaving && effects) key(choice.video, resumeGeneration) {
             VideoLayer(Uri.parse(choice.video))
         }
         Box(Modifier.fillMaxSize().background(Color(0x3301050C)))

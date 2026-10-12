@@ -9,15 +9,15 @@ android {
         applicationId = "com.example.homeezch.usb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 27
-        versionName = "0.26-USB"
+        versionCode = 28
+        versionName = "0.27-USB"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         debug { applicationIdSuffix = ".debug" }
         release { isMinifyEnabled = false }
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 }
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")

@@ -58,7 +58,7 @@ internal fun PortIcon(kind: TvSourceKind, modifier: Modifier = Modifier, color: 
                 }
                 line(.21f,.68f,.21f,.80f); line(.5f,.68f,.5f,.80f); line(.79f,.68f,.79f,.80f)
             }
-            TvSourceKind.TV -> {
+            TvSourceKind.TV, TvSourceKind.OTHER -> {
                 panel(.13f,.26f,.74f,.49f)
                 line(.34f,.10f,.5f,.26f); line(.66f,.10f,.5f,.26f)
                 line(.34f,.87f,.66f,.87f); line(.5f,.75f,.5f,.87f)

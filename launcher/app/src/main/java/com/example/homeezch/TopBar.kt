@@ -31,12 +31,13 @@ internal fun TopBar(refresh: Int, weatherReady: Boolean, homeReset: Int = 0,
     var expanded by remember { mutableStateOf(false) }
     var count by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
+    val heavy = LocalRenderProfile.current.heavyEffects
     val status = rememberConnectionStatus()
     val trigger = remember { FocusRequester() }
     LaunchedEffect(homeReset) { expanded = false }
     LaunchedEffect(expanded) {
         val target = if (expanded) 3 else 0
-        while (count != target) { if (count < target) count++ else count--; delay(90) }
+        while (count != target) { if (count < target) count++ else count--; delay(if (heavy) 90 else 80) }
     }
     BackHandler(expanded) { expanded = false; trigger.requestFocus() }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -49,8 +50,8 @@ internal fun TopBar(refresh: Int, weatherReady: Boolean, homeReset: Int = 0,
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             listOf("Настройки EZCH", "Wi-Fi", "Bluetooth").forEachIndexed { index, label ->
                 AnimatedVisibility(index >= 3 - count,
-                    enter = fadeIn(tween(220)) + slideInHorizontally(tween(220)) { -it / 10 },
-                    exit = fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 10 }) {
+                    enter = fadeIn(tween(if (heavy) 220 else 100)) + slideInHorizontally(tween(if (heavy) 220 else 100)) { -it / 10 },
+                    exit = fadeOut(tween(if (heavy) 180 else 100)) + slideOutHorizontally(tween(if (heavy) 180 else 100)) { -it / 10 }) {
                     QuickSettingTile(label, when(index) { 1 -> status.wifi; 2 -> status.bluetooth; else -> "Открыть" },
                         when(index) { 1 -> status.wifiConnected; 2 -> status.bluetoothConnected; else -> false }) {
                         when(index) { 1 -> SettingsRouter.wifi(context); 2 -> SettingsRouter.bluetooth(context); else -> { expanded = false; onSettings() } }

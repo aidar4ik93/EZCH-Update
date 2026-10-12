@@ -17,7 +17,8 @@ internal object WorkspacePrefs {
             }
             require(parsed.isNotEmpty())
             return Workspace(parsed, obj.getJSONArray("hiddenApps").strings(),
-                obj.getJSONArray("sourceOrder").strings(), obj.getJSONArray("hiddenSources").strings())
+                obj.getJSONArray("sourceOrder").strings(), obj.getJSONArray("hiddenSources").strings(),
+                obj.optJSONArray("removedApps")?.strings().orEmpty())
         }
         // Migrate component IDs to package IDs; activity renames cannot reset the order.
         val legacy = context.getSharedPreferences("launcher_preferences", Context.MODE_PRIVATE)
@@ -38,6 +39,7 @@ internal object WorkspacePrefs {
         val data = JSONObject().put("rows", rows).put("hiddenApps", JSONArray(workspace.hiddenApps))
             .put("sourceOrder", JSONArray(workspace.sourceOrder))
             .put("hiddenSources", JSONArray(workspace.hiddenSources))
+            .put("removedApps", JSONArray(workspace.removedApps))
         return context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
             .edit().putString("workspace_v1", data.toString()).commit()
     }

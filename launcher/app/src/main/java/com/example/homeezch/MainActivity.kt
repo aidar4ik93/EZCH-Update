@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private val blue = Color(0xFF48B9FF)
 private val panel = Color(0xFF131F31)
@@ -72,6 +73,7 @@ private val artCache = object :
 }
 
 class MainActivity : ComponentActivity() {
+    private val renderMonitor by lazy { LauncherRenderMonitor(this) }
 
     private var homeReset by mutableIntStateOf(0)
     private var homeMenu by mutableIntStateOf(0)
@@ -100,6 +102,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() {
         super.onStart()
+        renderMonitor.start()
         runCatching { inputManager?.registerCallback(inputs, Handler(Looper.getMainLooper())) }
         // These broadcasts originate from the system, not from an app-owned action.
         val filter = IntentFilter().apply {
@@ -122,9 +125,18 @@ class MainActivity : ComponentActivity() {
         observing = true
     }
     override fun onStop() {
+        renderMonitor.stop()
         if (observing) { unregisterReceiver(changes); observing = false }
         runCatching { inputManager?.unregisterCallback(inputs) }
         super.onStop()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level in 10..19 || level >= 40) {
+            artCache.evictAll()
+            renderMonitor.memoryPressure()
+        }
     }
 
     override fun onResume() {
@@ -140,6 +152,8 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("ezch.home.menu", false)) homeMenu++ else homeReset++
 
         setContent {
+            val profile by renderMonitor.profile.collectAsStateWithLifecycle()
+            CompositionLocalProvider(LocalRenderProfile provides profile) {
             androidx.compose.material3.MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme(
                 primary = Color(0xFF80B8FF), surface = Color(0xFF142137), background = Color(0xFF050A14)
             )) {
@@ -151,8 +165,7 @@ class MainActivity : ComponentActivity() {
             var appsReady by remember { mutableStateOf(false) }
             var storeOpen by remember { mutableStateOf(false) }
             var lastFocused by remember { mutableStateOf<String?>(null) }
-            var premium by remember { mutableStateOf(LauncherPrefs.isPremium(this@MainActivity)) }
-            LaunchedEffect(sourceGeneration) { premium = effectivePremium(this@MainActivity) }
+            val premium = profile.premium
             val storedOrder = remember { LauncherPrefs.loadOrder(this@MainActivity) }
 
             LaunchedEffect(appGeneration) {
@@ -175,7 +188,7 @@ class MainActivity : ComponentActivity() {
             } else {
 
                 val visibleApps = remember(installedApps, storedOrder) {
-                    val all = installedApps + LaunchApp("EZCH Store", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java))
+                    val all = installedApps + LaunchApp("Магазин EZCH", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java))
                     val byKey = all.associateBy { it.component?.flattenToString() ?: "ezch-store" }
                     orderedKeys(storedOrder, byKey.keys.toList()).mapNotNull(byKey::get)
                 }
@@ -188,7 +201,7 @@ class MainActivity : ComponentActivity() {
                     refreshSources = sourceGeneration,
                     premium = premium,
                     onPremiumChange = {
-                        premium = effectivePremium(this@MainActivity)
+                        renderMonitor.refresh()
                     },
                     onLaunch = { app ->
 
@@ -214,6 +227,7 @@ class MainActivity : ComponentActivity() {
             }
             LaunchSetup { weatherReady = true }
             }
+            }
         }
     }
 }
@@ -229,9 +243,10 @@ internal fun AppTile(
 
     var focused by remember { mutableStateOf(false) }
 
-    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(210), label = "appFocus")
+    val heavy = LocalRenderProfile.current.heavyEffects
+    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(if (heavy) 160 else 80), label = "appFocus")
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "appHalo")
-    val iconScale by animateFloatAsState(if (focused) 1.08f else 1f, tween(210), label = "iconFocus")
+    val iconScale by animateFloatAsState(if (focused && heavy) 1.08f else 1f, tween(if (heavy) 160 else 80), label = "iconFocus")
     val image = rememberAppArtwork(app.component)
     val shape = AppCardShape
 

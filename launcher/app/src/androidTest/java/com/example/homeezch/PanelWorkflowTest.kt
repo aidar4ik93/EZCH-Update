@@ -25,7 +25,7 @@ class PanelWorkflowTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     @Before fun desktopReady() {
-        ui.waitUntil(15000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(15000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
     }
     private fun open(tv: Boolean) {
         val trigger = ui.onNodeWithTag(if (tv) "sources-launcher" else "settings-launcher")
@@ -81,7 +81,7 @@ class PanelWorkflowTest {
             ui.waitForIdle()
             ui.onNodeWithTag("sources-panel").assertDoesNotExist()
             ui.onNodeWithTag("settings-panel").assertDoesNotExist()
-            ui.onNodeWithText("EZCH Store").assertIsFocused()
+            ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         }
     }
     @Test fun usbFileManagerActionOpensExistingActivityAndBackReturnsToPanel() {
@@ -100,6 +100,11 @@ class PanelWorkflowTest {
 
 internal fun prepareLauncherTest() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
+    // A real TV has a different installed-app inventory. Stable test focus must
+    // not depend on alphabetical labels or modify the owner's release workspace.
+    check(context.packageName.endsWith(".debug"))
+    WorkspacePrefs.save(context, Workspace(listOf(AppShelf("main", "Приложения",
+        listOf("ezch-store", context.packageName)))))
     context.getSharedPreferences("home_setup", Context.MODE_PRIVATE).edit()
         .putBoolean("setup_reviewed_v24", true).commit()
     context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE).edit()

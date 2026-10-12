@@ -5,7 +5,7 @@ import android.content.Context
 internal object LauncherPrefs {
     private const val PREFS = "ezch_launcher_prefs"
     fun isPremium(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("premium", true)
+        effectivePremium(context)
     fun setPremium(context: Context, premium: Boolean) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("premium", premium).apply()
     fun loadOrder(context: Context): List<String> =

@@ -28,7 +28,11 @@ class SettingsAppearanceTest {
     }
     @Test fun informationalSettingCanBeActivatedWithRemote() {
         var clicks = 0
-        ui.setContent { MaterialTheme { SettingsItem("Домой", "Главный экран", "Открывать EZCH при нажатии Home.", "Назначен") { clicks++ } } }
+        ui.setContent {
+            val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+            androidx.compose.runtime.LaunchedEffect(Unit) { inputMode.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard) }
+            MaterialTheme { SettingsItem("Домой", "Главный экран", "Открывать EZCH при нажатии Home.", "Назначен") { clicks++ } }
+        }
         ui.onNodeWithText("Главный экран").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus) { it() }
         ui.onNodeWithText("Главный экран").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(1, clicks)

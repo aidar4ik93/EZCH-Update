@@ -152,6 +152,7 @@ class MainActivity : ComponentActivity() {
             var storeOpen by remember { mutableStateOf(false) }
             var lastFocused by remember { mutableStateOf<String?>(null) }
             var premium by remember { mutableStateOf(LauncherPrefs.isPremium(this@MainActivity)) }
+            LaunchedEffect(sourceGeneration) { premium = effectivePremium(this@MainActivity) }
             val storedOrder = remember { LauncherPrefs.loadOrder(this@MainActivity) }
 
             LaunchedEffect(appGeneration) {
@@ -187,8 +188,7 @@ class MainActivity : ComponentActivity() {
                     refreshSources = sourceGeneration,
                     premium = premium,
                     onPremiumChange = {
-                        premium = it
-                        LauncherPrefs.setPremium(this@MainActivity, it)
+                        premium = effectivePremium(this@MainActivity)
                     },
                     onLaunch = { app ->
 
@@ -233,17 +233,17 @@ internal fun AppTile(
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "appHalo")
     val iconScale by animateFloatAsState(if (focused) 1.08f else 1f, tween(210), label = "iconFocus")
     val image = rememberAppArtwork(app.component)
-    val shape = DesktopShape
+    val shape = AppCardShape
 
     Box(
         modifier = modifier
-            .width(width)
-            .height(94.dp)
+            .width(width * AppCardScale)
+            .height(94.dp * AppCardScale)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .focusHalo({ glow })
             .clip(shape)
             .background(
-                if (app.component == null) Color(0xFF07385F) else panel, shape
+                if (app.component == null) Color(0xFF07385F).copy(alpha = .4f) else panel.copy(alpha = .4f), shape
             )
             .border(
                 if (focused) 1.5.dp else 1.dp,
@@ -263,9 +263,14 @@ internal fun AppTile(
                 bitmap = image,
                 contentDescription = app.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().height(62.dp).padding(top = 9.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
+                modifier = Modifier.fillMaxWidth().height(62.dp * AppCardScale).padding(top = 9.dp * AppCardScale).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
             )
 
+        } else if (app.component == null) {
+            Image(painter = painterResource(R.drawable.ezch_brand), contentDescription = app.name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth().height(62.dp * AppCardScale).padding(top = 9.dp * AppCardScale)
+                    .graphicsLayer { scaleX = iconScale; scaleY = iconScale })
         } else {
 
             Box(
@@ -274,7 +279,7 @@ internal fun AppTile(
             ) {
                 Text(
                     if (app.component == null) "▣" else "◈",
-                    fontSize = 38.sp,
+                    fontSize = 32.sp,
                     color = blue
                 )
             }
@@ -288,7 +293,7 @@ internal fun AppTile(
                     Brush.verticalGradient(
                         listOf(
                             Color.Transparent,
-                            Color(0xF0000713)
+                            Color(0x66000713)
                         )
                     )
                 )
@@ -298,12 +303,12 @@ internal fun AppTile(
             app.name,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(10.dp)
+                .padding(10.dp * AppCardScale)
         )
     }
 }
@@ -323,6 +328,7 @@ internal fun PortTile(
     var focused by remember { mutableStateOf(false) }
 
     val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(170), label = "portFocus")
+    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "portHalo")
     val pulse = remember { Animatable(0f) }
     val connectionGlow by animateFloatAsState(if (connected) .32f else .14f, tween(900), label = "connectionGlow")
     var previous by remember { mutableStateOf(connected) }
@@ -340,11 +346,12 @@ internal fun PortTile(
             .width(width)
             .height(84.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .focusHalo({ glow }, accent)
             .clip(DesktopShape)
             .background(
                 Brush.verticalGradient(listOf(
                     accent.copy(alpha = connectionGlow + pulse.value * 0.45f),
-                    Color(0xB0081222))),
+                    Color(0x66081222))),
                 DesktopShape
             )
             .border(

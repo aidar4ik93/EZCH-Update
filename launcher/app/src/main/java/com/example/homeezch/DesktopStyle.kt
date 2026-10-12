@@ -4,3 +4,5 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
 internal val DesktopShape = RoundedCornerShape(18.dp)
+internal const val AppCardScale = .85f
+internal val AppCardShape = RoundedCornerShape(32)

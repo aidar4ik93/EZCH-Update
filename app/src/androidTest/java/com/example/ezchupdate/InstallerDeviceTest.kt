@@ -227,10 +227,12 @@ class InstallerDeviceTest {
         instrumentation.runOnMainSync {
             val pendingIntent = Intent("test.confirm").putExtra("session", 123)
             InstallEvents.record(context, InstallSnapshot(fixtureApp.packageName, 123, PackageInstaller.STATUS_PENDING_USER_ACTION, null, pendingIntent))
-            InstallEvents.consumeConfirmation(123)
+            InstallEvents.consumeConfirmation(context, 123)
             assertNull(InstallEvents.snapshot.value?.confirmationIntent)
             InstallEvents.restore(context)
-            assertEquals(123, InstallEvents.snapshot.value?.confirmationIntent?.getIntExtra("session", -1))
+            assertEquals(PackageInstaller.STATUS_PENDING_USER_ACTION, InstallEvents.snapshot.value?.status)
+            assertNull("An already launched system installer must not be reopened after restart",
+                InstallEvents.snapshot.value?.confirmationIntent)
             InstallEvents.record(context, InstallSnapshot(fixtureApp.packageName, 123, PackageInstaller.STATUS_SUCCESS, "ok"))
             InstallEvents.snapshot.value = null
             InstallEvents.restore(context)

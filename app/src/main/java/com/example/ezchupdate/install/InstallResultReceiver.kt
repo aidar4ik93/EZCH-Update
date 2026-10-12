@@ -46,9 +46,13 @@ object InstallEvents {
         }.getOrNull()
     }
 
-    fun consumeConfirmation(sessionId: Int) {
+    fun consumeConfirmation(context: Context, sessionId: Int) {
         val current = snapshot.value ?: return
-        if (current.sessionId == sessionId) snapshot.value = current.copy(confirmationIntent = null)
+        if (current.sessionId == sessionId) {
+            // The system confirmation was already launched. Persist that fact:
+            // otherwise activity/process recreation can reopen a stale installer.
+            record(context, current.copy(confirmationIntent = null))
+        }
     }
 
     fun consume(context: Context, sessionId: Int) {

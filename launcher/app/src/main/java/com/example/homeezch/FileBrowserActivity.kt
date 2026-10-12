@@ -65,6 +65,7 @@ class FileBrowserActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme(colorScheme=darkColorScheme(primary=Color(0xFF59DAFF))) {
             val scope=rememberCoroutineScope();val list=rememberLazyListState();val first=remember { FocusRequester() }
+            var onlyApks by rememberSaveable { mutableStateOf(false) }
             var folder by rememberSaveable { mutableStateOf(intent.getStringExtra("path")) }
             var files by remember { mutableStateOf<List<File>>(emptyList()) }
             var selected by remember { mutableStateOf<File?>(null) };var command by remember { mutableStateOf<String?>(null) }
@@ -84,13 +85,13 @@ class FileBrowserActivity : ComponentActivity() {
                 val current=folder?.let(::File)
                 folder=if(current==null || roots.any { it.absolutePath==current.absolutePath }) null else current.parent
             }
-            LaunchedEffect(folder,revision,granted) {
+            LaunchedEffect(folder,revision,granted,onlyApks) {
                 files=emptyList()
                 if(folder!=null && granted) {
                     val result=withContext(Dispatchers.IO) { runCatching {
                         File(folder!!).listFiles()?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() }) ?: error("Не удалось прочитать папку. Проверьте накопитель и разрешение.")
                     } }
-                    files=result.getOrDefault(emptyList());message=result.exceptionOrNull()?.message ?: ""
+                    files=result.getOrDefault(emptyList()).filter { !onlyApks || it.isDirectory || it.extension.equals("apk", true) };message=result.exceptionOrNull()?.message ?: ""
                 }
             }
             LaunchedEffect(folder,files,granted,revision) { list.scrollToItem(0);withFrameNanos { };runCatching { first.requestFocus() } }
@@ -100,7 +101,7 @@ class FileBrowserActivity : ComponentActivity() {
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     FileButton({ startActivity(Intent(this@FileBrowserActivity, DocumentBrowserActivity::class.java)) },enabled=!busy) { Text("Выбрать папку / USB") }
                     FileButton({ if(folder==null)finish() else back() },enabled=!busy) { Text("Назад") }
-                    FileButton({ folder=null },enabled=!busy) { Text("Накопители") }
+                    FileButton({ folder=null; onlyApks=false },enabled=!busy) { Text("Накопители") }
                     FileButton({ revision++ },enabled=!busy) { Text("Обновить") }
                     if(folder!=null && granted) {
                         FileButton({ name="";command="mkdir" },modifier=if(files.isEmpty())Modifier.focusRequester(first) else Modifier,enabled=!busy) { Text("Новая папка") }
@@ -111,11 +112,27 @@ class FileBrowserActivity : ComponentActivity() {
                     Text("Разрешите встроенному проводнику доступ к файлам в настройках Android.")
                     FileButton({ grantAccess() },Modifier.focusRequester(first)) { Text("Разрешить доступ к файлам") }
                 }
+                if(folder == null && granted) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Загрузки" to Environment.DIRECTORY_DOWNLOADS, "Видео" to Environment.DIRECTORY_MOVIES,
+                            "Музыка" to Environment.DIRECTORY_MUSIC, "Изображения" to Environment.DIRECTORY_PICTURES,
+                            "APK" to Environment.DIRECTORY_DOWNLOADS, "Документы" to Environment.DIRECTORY_DOCUMENTS).forEach { (title, directory) ->
+                            FileButton({ onlyApks = title == "APK"; folder = Environment.getExternalStoragePublicDirectory(directory).path }, enabled = !busy) {
+                                Text(title, color = Color(0xFF8CDAFF))
+                            }
+                        }
+                    }
+                }
                 Text(if(busy) "Выполняется…" else message,color=Color(0xFF59DAFF))
                 LazyColumn(Modifier.weight(1f),state=list) {
                     if(folder==null) items(roots,key={ it.path }) { root ->
                         FileButton({ folder=root.path },Modifier.fillMaxWidth().then(if(granted && root==roots.firstOrNull())Modifier.focusRequester(first) else Modifier),!busy) {
-                            Text((if(root==Environment.getExternalStorageDirectory()) "Внутренняя память" else "USB / накопитель")+" · ${root.path}")
+                            Text("▣", color = Color(0xFF8CDAFF), style = MaterialTheme.typography.headlineMedium)
+                            Spacer(Modifier.width(16.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(if(root==Environment.getExternalStorageDirectory()) "Внутренняя память" else "USB / накопитель")
+                                Text("${root.name} · свободно ${"%.1f".format(root.usableSpace / 1073741824.0)} из ${"%.1f".format(root.totalSpace / 1073741824.0)} ГБ", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     } else items(files,key={it.path}) { file ->
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -123,7 +140,9 @@ class FileBrowserActivity : ComponentActivity() {
                                 if(java.nio.file.Files.isSymbolicLink(file.toPath()))message="Символические ссылки не поддерживаются"
                                 else if(file.isDirectory)folder=file.path
                                 else runCatching { open(file) }.onFailure { message="Не удалось открыть файл: ${it.message ?: "нет подходящего приложения"}" }
-                            },Modifier.weight(1f).then(if(file==files.firstOrNull())Modifier.focusRequester(first) else Modifier),!busy) { Text((if(file.isDirectory) "Папка · " else "Файл · ")+file.name) }
+                            },Modifier.weight(1f).then(if(file==files.firstOrNull())Modifier.focusRequester(first) else Modifier),!busy) { Text(if (file.isDirectory) "▣" else when(file.extension.lowercase()) { "mp4", "mkv", "avi" -> "▶"; "mp3", "flac", "wav" -> "♫"; "apk" -> "↓"; else -> "▤" }, color = if (file.isDirectory) Color(0xFFFFCB74) else Color(0xFF8CDAFF))
+                                Spacer(Modifier.width(12.dp)); Text(file.name, modifier = Modifier.weight(1f))
+                                if (!file.isDirectory) Text("${file.length()/1024} КБ", style = MaterialTheme.typography.bodySmall) }
                             FileButton({ selected=file },enabled=!busy) { Text("Действия") }
                         }
                     }

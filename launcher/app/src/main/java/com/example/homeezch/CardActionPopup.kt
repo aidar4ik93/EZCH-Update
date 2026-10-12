@@ -22,7 +22,9 @@ import androidx.compose.ui.window.*
 /** The opening hold belongs to the card, never to the first menu action. */
 @Composable
 internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press: CenterPress,
-    onDismiss: () -> Unit, onMove: () -> Unit, onHide: () -> Unit) {
+    onDismiss: () -> Unit, onMove: () -> Unit, onHide: () -> Unit,
+    onAutoStart: (() -> Unit)? = null, autoStart: Boolean = false, onInfo: (() -> Unit)? = null,
+    onFavorite: (() -> Unit)? = null) {
     var waitingForRelease by remember { mutableStateOf(press.isPressed) }
     val first = remember { FocusRequester() }
     val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
@@ -63,6 +65,9 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
                 Modifier.focusRequester(first), onMove)
             Spacer(Modifier.height(5.dp))
             CardMenuAction("Скрыть с рабочего стола", "⊖", Modifier, onHide)
+            onAutoStart?.let { CardMenuAction(if (autoStart) "Отключить автозапуск ТВ" else "Запускать ТВ при включении", "▶", Modifier, it) }
+            onInfo?.let { CardMenuAction("Информация о приложении", "ⓘ", Modifier, it) }
+            onFavorite?.let { CardMenuAction("Добавить в избранное", "☆", Modifier, it) }
         }
         LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }
     }

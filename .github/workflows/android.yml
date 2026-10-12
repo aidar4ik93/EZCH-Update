@@ -32,7 +32,7 @@ jobs:
       - name: Build APK, compile instrumentation tests, run unit tests and lint
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :launcher:assembleDebug :launcher:assembleDebugAndroidTest :launcher:testDebugUnitTest :launcher:lintDebug --console=plain
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug :launcher:assembleDebug :launcher:assembleDebugAndroidTest :launcher:testDebugUnitTest :launcher:lintDebug --console=plain
           python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
       - name: Save APK and reports
         if: always()

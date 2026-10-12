@@ -191,7 +191,7 @@ class AppInstaller {
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                setPackageSource(PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
+                setPackageSource(PackageInstaller.PACKAGE_SOURCE_STORE)
             }
         }
         val sessionId = installer.createSession(parameters)

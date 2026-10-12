@@ -9,6 +9,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.Before
 class UpdaterIntegrationTest {
+    companion object {
+        @JvmStatic @org.junit.BeforeClass fun reviewedSetup() { prepareLauncherTest() }
+    }
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     @Before fun dismissInitialSetup() {
         ui.activity.getSharedPreferences("ezch_launcher_prefs", android.content.Context.MODE_PRIVATE).edit()
@@ -22,16 +25,13 @@ class UpdaterIntegrationTest {
     @Test fun storeOpensUpdaterAndBackReturnsToLauncher() {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val device=UiDevice.getInstance(instrumentation)
-        val updaterPackage = runCatching {
-            instrumentation.targetContext.packageManager.getActivityInfo(
-                android.content.ComponentName("com.example.ezchupdate.tvtest", "com.example.ezchupdate.MainActivity"), 0)
-            "com.example.ezchupdate.tvtest"
-        }.getOrDefault(instrumentation.targetContext.packageName)
+        val updaterPackage = instrumentation.targetContext.packageName
         ui.onNodeWithText("EZCH Store").performClick()
         val deadline=SystemClock.elapsedRealtime()+30_000
         while(device.currentPackageName != updaterPackage && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(500)
         assertEquals(updaterPackage,device.currentPackageName)
-        assertTrue(device.wait(androidx.test.uiautomator.Until.hasObject(androidx.test.uiautomator.By.text("Проверить обновления")), 15000))
+        assertTrue(device.wait(androidx.test.uiautomator.Until.hasObject(androidx.test.uiautomator.By.text("Проверить обновления").pkg(updaterPackage)), 15000))
+        assertEquals(updaterPackage, device.currentPackageName)
         device.pressBack()
         val backDeadline=SystemClock.elapsedRealtime()+30_000
         while(device.currentPackageName != instrumentation.targetContext.packageName && SystemClock.elapsedRealtime()<backDeadline) SystemClock.sleep(500)

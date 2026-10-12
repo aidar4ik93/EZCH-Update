@@ -11,6 +11,9 @@ import org.junit.Test
 
 @OptIn(ExperimentalTestApi::class)
 class HomeResetTest {
+    companion object {
+        @JvmStatic @org.junit.BeforeClass fun reviewedSetup() { prepareLauncherTest() }
+    }
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     @Before fun dismissSetup() {
         ui.activity.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE).edit()

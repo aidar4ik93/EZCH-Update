@@ -148,7 +148,7 @@ internal fun WeatherSlot(refresh: Int, ready: Boolean = true, homeReset: Int = 0
     LaunchedEffect(point, revision, refresh, ready, lifecycle) {
         if (!ready) return@LaunchedEffect
         val selected = point
-        if (selected == null) { result = WeatherResult(null, if (busy) "Определяем…" else "Ожидаем локацию"); return@LaunchedEffect }
+        if (selected == null) { result = WeatherResult(null, if (busy) "Определяем…" else "Выберите город"); return@LaunchedEffect }
         if (result.reading == null) result = WeatherResult(null, "Загрузка…")
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var forced = revision > 0
@@ -156,26 +156,27 @@ internal fun WeatherSlot(refresh: Int, ready: Boolean = true, homeReset: Int = 0
                 val owner = Any()
                 updateOwner = owner
                 try {
-                    result = OpenMeteoWeather.load(context, selected, forced)
+                    result = MetWeather.load(context, selected, forced)
                 } finally {
                     if (updateOwner === owner) updateOwner = null
                 }
                 forced = result.status.isNotBlank()
-                delay(if (result.status.isNotBlank()) 60_000L else 30*60*1000L)
+                delay(if (result.status.isNotBlank()) 5*60_000L else 30*60*1000L + kotlin.random.Random.nextLong(60_000L))
             }
         }
     }
-    Column(Modifier.width(104.dp).clip(DesktopShape).border(if (focused) 4.dp else 0.dp,
+    Column(Modifier.width(178.dp).clip(DesktopShape).border(if (focused) 4.dp else 0.dp,
         if (focused) Color(0xFF48B9FF) else Color.Transparent, DesktopShape)
         .onFocusChanged { focused = it.isFocused }.clickable { query = point?.city.orEmpty(); open = true }.padding(4.dp)) {
         Text(point?.city ?: "Город", fontSize = 11.sp, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Text(result.reading?.let { "${it.temperature}° · ${OpenMeteoWeather.condition(it.condition)}" } ?: "Погода: —",
+        Text(result.reading?.let { "${MetWeather.icon(it.condition)} ${it.temperature}° · ${MetWeather.condition(it.condition)}" } ?: "Погода: —",
             fontSize = 11.sp, color = Color.White, maxLines = 1)
-        Text(result.status.ifBlank { if (networkLocation) "Open-Meteo · по сети" else "Open-Meteo" }, fontSize = 8.sp, color = Color(0xFFB6C6DA), maxLines = 1)
+        Text(result.reading?.let { "Обновлено " + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it.fetchedAt)) }.orEmpty(), fontSize = 8.sp, color = Muted)
+        Text(result.status.ifBlank { if (networkLocation) "MET Norway · по сети" else "MET Norway" }, fontSize = 8.sp, color = Color(0xFFB6C6DA), maxLines = 1)
     }
     if (open) AlertDialog(onDismissRequest = { if (!busy) open = false }, title = { Text("Погода по местоположению") }, text = {
         Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-            Text("Open-Meteo · без ключа · некоммерческое использование", fontSize = 12.sp)
+            Text("MET Norway Locationforecast · CC BY 4.0 · температура округлена. Поиск города: Open-Meteo / GeoNames.", fontSize = 12.sp)
             Text(result.status, fontSize = 12.sp)
             TextButton(enabled = point != null && !busy && !updating, onClick = { revision++; message = "" }) { Text("Обновить погоду сейчас") }
             Text("Если ТВ не передаёт локацию, город определяется примерно по внешнему IP через IPWhois. VPN может менять город.", fontSize = 12.sp)
@@ -199,8 +200,8 @@ internal fun WeatherSlot(refresh: Int, ready: Boolean = true, homeReset: Int = 0
             result.reading?.let { reading -> Text("Получено: ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(reading.fetchedAt))}", fontSize = 12.sp) }
             Text(if (updating) "Обновляем погоду…" else message, fontSize = 12.sp)
             TextButton(onClick = {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://open-meteo.com/"))) }.onFailure { message = "Браузер недоступен" }
-            }) { Text("Данные: Open-Meteo · CC BY 4.0") }
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://api.met.no/doc/License"))) }.onFailure { message = "Браузер недоступен" }
+            }) { Text("Данные: MET Norway · CC BY 4.0") }
         }
     }, confirmButton = { TextButton(enabled = !busy, onClick = { open = false }) { Text("Закрыть") } })
 }

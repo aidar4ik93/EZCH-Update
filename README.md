@@ -1,6 +1,6 @@
 # EZCH Launcher 0.26 / Update 1.6.4
 
-Рабочая версия в этой ветке основана на восстановленных исходниках Launcher 0.25. [Изменения, проверки и ограничения 0.26](RELEASE_0.26_RU.md).
+Выпуск 0.26 основан на восстановленных исходниках Launcher 0.25. [Изменения, проверки и ограничения 0.26](RELEASE_0.26_RU.md).
 
 Launcher: `com.example.homeezch.usb`, versionCode 27, versionName 0.26-USB. Update: `com.example.ezchupdate.tvtest`, versionCode 25, versionName 1.6.4. Android 8.0+ (API 26), штатные HOME/TV/file/installation API.
 
@@ -37,7 +37,11 @@ JDK 17+, Android SDK Platform 37.0, Build Tools 36.0.0. Локальный сц�
 
 ## Каталог и публикация
 
-`apps.json` и две встроенные копии используются прежним проверяемым каталогом. Новые APK до публикации не подменяют действующие ссылки. Обновлять версии, размеры и хеши каталога следует после размещения готовых файлов и проверки ссылок.
+[Скачать Launcher 0.26 USB](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v0.26-usb). [Скачать Update 1.6.4](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v1.6.4).
+
+Оба APK опубликованы и скачаны по публичным ссылкам; размеры и SHA-256 совпадают с подписанными локальными файлами. `apps.json` и две встроенные копии обновлены до этих версий. Остальные приложения каталога сохранены. Исходный код объединён в main через [PR #3](https://github.com/aidar4ik93/EZCH-Update/pull/3); [итоговые проверки сборки, Android TV и Google TV](https://github.com/aidar4ik93/EZCH-Update/actions/runs/38239745435) прошли.
+
+Встроенный каталог в опубликованном APK является снимком на момент сборки; при подключении к сети приложение получает актуальный каталог из main. Изменение каталога после публикации не меняет подписанный APK.
 
 ## Поддержка и пределы проверки
 

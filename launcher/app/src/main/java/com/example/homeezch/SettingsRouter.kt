@@ -38,7 +38,6 @@ internal object SettingsRouter {
             Intent(Settings.ACTION_BLUETOOTH_SETTINGS).setPackage("com.google.android.tv.settings"),
             Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
             Intent("android.settings.CONNECTED_DEVICE_SETTINGS"),
-            Intent("android.bluetooth.devicepicker.action.LAUNCH"),
             Intent(Settings.ACTION_SETTINGS)
         )
         return open(context, candidates)

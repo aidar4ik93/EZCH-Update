@@ -100,6 +100,17 @@
       "sizeBytes": 69548430
     },
     {
+      "name": "Reelo",
+      "packageName": "ru.reelo.androidtv",
+      "versionCode": 92,
+      "versionName": "0.2.61",
+      "signerSha256": "bba724c0a915b30cbd64a6d55048bc11492020b025411fda5f1631ebe47d7161",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1V_T1S3bQXjtgMR7cvERCrU8EUrmU8HoO&export=download&confirm=t",
+      "apkPath": "/reelo-0.2.61-92.apk",
+      "sha256": "52ac047654fd5ed28b8bd8619a3ada2bbe0b1c0b3394e1845c070365b636cd15",
+      "sizeBytes": 37724260
+    },
+    {
       "name": "RuStore",
       "packageName": "ru.vk.store.tv",
       "versionCode": 1110006,

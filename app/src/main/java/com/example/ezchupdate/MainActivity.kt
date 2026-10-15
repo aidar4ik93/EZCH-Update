@@ -81,11 +81,18 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val viewModel: CatalogViewModel by viewModels()
+    private var notificationRequest by mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         UpdateSettings(this).schedule()
+        handleNotificationIntent(intent)
+        val notificationSettings = UpdateSettings(this)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED && !notificationSettings.prefs.getBoolean("notification_permission_asked", false)) {
+            notificationSettings.prefs.edit().putBoolean("notification_permission_asked", true).apply()
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 72)
+        }
 
         // Android confirmation is launched only by the resumed foreground Activity.
         lifecycleScope.launch {
@@ -124,16 +131,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             PremiumTheme {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                LaunchedEffect(state.isLoading) {
-                    if (!state.isLoading) {
-                        intent.getStringExtra("selected_package")?.let { selected ->
-                            intent.removeExtra("selected_package")
-                            if (selected !in state.selectedPackages) viewModel.toggleSelection(selected)
-                        }
-                    }
-                }
                 PremiumCatalogScreen(
                     state = state,
+                    notificationRequest = notificationRequest,
                     onReload = viewModel::reload,
                     onToggle = viewModel::toggleSelection,
                     onInstall = { viewModel.installSelected(this) },
@@ -141,6 +141,28 @@ class MainActivity : ComponentActivity() {
                     onCancel = viewModel::cancelInstallation
                 )
             }
+        }
+    }
+
+    private fun handleNotificationIntent(incoming: Intent) {
+        if (incoming.getBooleanExtra(UpdateNotifier.OPEN_UPDATES, false) || incoming.hasExtra("selected_package")) {
+            incoming.removeExtra(UpdateNotifier.OPEN_UPDATES)
+            incoming.removeExtra("selected_package")
+            notificationRequest++
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 72 && grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            UpdateSettings(this).checkNow()
+            viewModel.reload()
         }
     }
 

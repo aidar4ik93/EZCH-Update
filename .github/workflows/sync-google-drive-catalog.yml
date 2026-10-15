@@ -13,7 +13,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  configuration:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.credential.outputs.ready }}
+    steps:
+      - name: Check server credential configuration
+        id: credential
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+        shell: bash
+        run: |
+          if [ -n "$GOOGLE_DRIVE_API_KEY" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Drive synchronization is not configured: add GOOGLE_DRIVE_API_KEY restricted to Drive API. The previous catalog is preserved.' >> "$GITHUB_STEP_SUMMARY"
+          fi
   sync:
+    needs: configuration
+    if: needs.configuration.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -37,7 +56,7 @@ jobs:
           sudo apt-get install -y librsvg2-bin
           python3 -m pip install 'Pillow==11.3.0'
       - name: Verify synchronization behavior
-        run: python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+        run: python3 -m unittest discover -s scripts -p 'test_*catalog*.py' -v
       - name: Prepare Android SDK build tools
         shell: bash
         run: |

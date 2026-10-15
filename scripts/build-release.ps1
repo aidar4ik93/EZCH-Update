@@ -3,7 +3,7 @@ param(
     [ValidateSet('app','launcher')][string]$Module = 'app',
     [switch]$LegacyUpdate,
     [string]$SigningProject = (Join-Path $env:USERPROFILE 'AndroidStudioProjects\EZCHUpdate'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.7.0.apk'),
+    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.8.0.apk'),
     [string]$ExpectedCertificate = 'ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602',
     [string]$AndroidSdk = (Join-Path $env:LOCALAPPDATA 'Android\Sdk'),
     [string]$JavaHome = (Join-Path $env:ProgramFiles 'Android\Android Studio\jbr')

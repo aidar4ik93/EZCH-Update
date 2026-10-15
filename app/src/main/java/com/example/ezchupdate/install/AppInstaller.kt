@@ -48,8 +48,9 @@ class AppInstaller {
     }
 
     private fun enforceQuarantine(app: RemoteApp) {
+        check(app.installable) { "Нет проверенного APK: ${app.name}" }
         check(!QuarantinedApks.isQuarantined(app)) {
-            "Этот файл временно исключён из каталога после проверки безопасности: ${app.name}"
+            "Этот файл на карантине до завершения проверки: ${app.name}"
         }
     }
 
@@ -148,6 +149,32 @@ class AppInstaller {
             ?: error("Загруженный файл ${app.name} не является APK")
         check(archive.packageName == app.packageName) { "Имя пакета APK не совпадает с каталогом: ${app.name}" }
         check(archive.versionCodeCompat() == app.versionCode) { "Версия APK не совпадает с каталогом: ${app.name}" }
+        check(archive.versionName == app.versionName) { "Название версии APK не совпадает с каталогом: ${app.name}" }
+        check(archive.splitNames.isNullOrEmpty()) {
+            "${app.name}: нужен полный APK, отдельные части приложения не поддерживаются"
+        }
+        val archiveInfo = checkNotNull(archive.applicationInfo) { "Не удалось прочитать манифест ${app.name}" }
+        archiveInfo.sourceDir = apkFile.absolutePath
+        archiveInfo.publicSourceDir = apkFile.absolutePath
+        packageManager.getResourcesForApplication(archiveInfo).assets.openXmlResourceParser("AndroidManifest.xml").use { xml ->
+            while (xml.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                if (xml.eventType == org.xmlpull.v1.XmlPullParser.START_TAG) {
+                    check(!(xml.name == "manifest" && !xml.getAttributeValue(null, "split").isNullOrBlank()) &&
+                        xml.name != "uses-split" && !xml.getAttributeBooleanValue(
+                            "http://schemas.android.com/apk/res/android", "isSplitRequired", false)) {
+                        "${app.name}: требуется комплект split APK; выберите полный универсальный APK"
+                    }
+                }
+                xml.next()
+            }
+        }
+        java.util.zip.ZipFile(apkFile).use { zip ->
+            val nativeAbis = zip.entries().asSequence().map { it.name }
+                .filter { it.startsWith("lib/") && it.endsWith(".so") }.map { it.split('/')[1] }.toSet()
+            check(nativeAbis.isEmpty() || Build.SUPPORTED_ABIS.any { it in nativeAbis }) {
+                "${app.name}: APK не поддерживает процессор этого устройства (${Build.SUPPORTED_ABIS.joinToString()})"
+            }
+        }
         check(archive.applicationInfo?.minSdkVersion?.let { it <= Build.VERSION.SDK_INT } != false) {
             "${app.name}: требуется более новая версия Android"
         }

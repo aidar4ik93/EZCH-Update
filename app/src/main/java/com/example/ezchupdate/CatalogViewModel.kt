@@ -26,7 +26,7 @@ import java.io.InterruptedIOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class AppRow(val app: RemoteApp, val installed: InstalledApp?) {
-    val updateAvailable: Boolean get() = installed == null || installed.versionCode < app.versionCode
+    val updateAvailable: Boolean get() = app.installable && (installed == null || installed.versionCode < app.versionCode)
 }
 
 data class CatalogUiState(
@@ -139,13 +139,14 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             try {
                 if (_uiState.value.rows.isEmpty()) {
                     val local = withContext(Dispatchers.IO) {
-                        repository.loadLocal()?.map { app -> AppRow(app, installedApp(app.packageName)) }
+                        repository.loadLocal()?.let { CuratedCatalog.decorate(it, appContext.packageName) }?.map { app -> AppRow(app, installedApp(app.packageName)) }
                     }
                     if (!local.isNullOrEmpty()) _uiState.value = _uiState.value.copy(rows = local, isLoading = false)
                 }
                 val rows = withContext(Dispatchers.IO) {
-                    repository.load().map { app -> AppRow(app, installedApp(app.packageName)) }
+                    CuratedCatalog.decorate(repository.load(), appContext.packageName).map { app -> AppRow(app, installedApp(app.packageName)) }
                 }
+                if (!repository.offline) UpdateNotifier(appContext).publish(rows.filter { it.installed != null && it.updateAvailable }.map { it.app })
                 val selectable = rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()
                 val cachedWarning = "Не удалось обновить каталог. Показана сохранённая версия; для загрузки APK нужен интернет."
                 val message = _uiState.value.message?.lines()?.filterNot { it == cachedWarning }
@@ -476,6 +477,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         val rows = _uiState.value.rows
         if (rows.isEmpty()) return
         val refreshed = rows.map { it.copy(installed = installedApp(it.app.packageName)) }
+        UpdateNotifier(appContext).publish(refreshed.filter { it.installed != null && it.updateAvailable }.map { it.app })
         _uiState.value = _uiState.value.copy(
             rows = refreshed,
             selectedPackages = if (isBusy()) _uiState.value.selectedPackages

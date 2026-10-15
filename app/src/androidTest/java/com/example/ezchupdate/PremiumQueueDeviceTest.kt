@@ -16,7 +16,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.regex.Pattern
 
-/** Real PackageInstaller sessions, five independently signed harmless fixture packages. */
+/** Real PackageInstaller sessions with harmless fixture packages. */
 class PremiumQueueDeviceTest {
     private val instrument = InstrumentationRegistry.getInstrumentation()
     private val context = instrument.targetContext
@@ -105,6 +105,7 @@ class PremiumQueueDeviceTest {
             device.executeShellCommand("am force-stop com.google.android.packageinstaller")
         }
     }
+    @Test fun tenApksWaitForEachResult() = runQueue(10)
     @Test fun threeApksWaitForEachSystemResult() = runQueue(3)
     @Test fun fiveApksRemainSequentialAcrossViewModelRecreation() = runQueue(5, restartAt = 2)
     @Test fun cancellationIsFailureAndQueueContinuesSequentially() = runQueue(3, cancelAt = 2)

@@ -20,7 +20,8 @@ data class RemoteApp(
     val sizeBytes: Long? = null,
     val signerSha256: String? = null,
     val iconUrl: String? = null,
-    val iconSha256: String? = null
+    val iconSha256: String? = null,
+    val installable: Boolean = true
 )
 
 data class InstalledApp(

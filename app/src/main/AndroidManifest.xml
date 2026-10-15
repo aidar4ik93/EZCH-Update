@@ -23,6 +23,9 @@
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
         <package android:name="com.example.ezchupdate.tvtest" />
+        <package android:name="com.example.ezchupdate" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="org.amnezia.vpn" />
         <package android:name="com.example.homeezch.usb" />
         <package android:name="io.github.romanvht.byedpi" />
         <package android:name="ru.tiardev.kinotrend" />

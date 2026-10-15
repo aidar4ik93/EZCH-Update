@@ -11,8 +11,8 @@ android {
         applicationId = if (providers.gradleProperty("ezchLegacyUpdate").orNull == "true") "com.example.ezchupdate" else "com.example.ezchupdate.tvtest"
         minSdk = 26
         targetSdk = 37
-        versionCode = 26
-        versionName = "1.7.0"
+        versionCode = 30
+        versionName = "1.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

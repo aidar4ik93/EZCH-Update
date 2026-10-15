@@ -34,7 +34,7 @@ jobs:
           python3 -m pip install 'Pillow==11.3.0'
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug :launcher:assembleDebug :launcher:assembleDebugAndroidTest :launcher:testDebugUnitTest :launcher:lintDebug --console=plain
-          python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+          python3 -m unittest discover -s scripts -p 'test_*catalog*.py' -v
       - name: Save APK and reports
         if: always()
         uses: actions/upload-artifact@v5

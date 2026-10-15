@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.*
 import com.example.ezchupdate.data.CatalogRepository
+import com.example.ezchupdate.data.RemoteApp
 import com.example.ezchupdate.install.AppInstaller
 import com.example.ezchupdate.install.InstallQueueStore
 import java.util.concurrent.TimeUnit
@@ -26,26 +27,103 @@ class UpdateSettings(private val context: Context) {
         set(value) { prefs.edit().putBoolean("auto_check", value).apply(); schedule() }
     var autoDownload: Boolean
         get() = prefs.getBoolean("auto_download", false)
-        set(value) { prefs.edit().putBoolean("auto_download", value).apply(); schedule() }
+        set(value) { prefs.edit().putBoolean("auto_download", value).apply() }
     var intervalHours: Long
-        get() = prefs.getLong("interval_hours", 6)
-        set(value) { prefs.edit().putLong("interval_hours", value).apply(); schedule() }
+        get() = prefs.getLong("interval_hours", 1).coerceIn(1, 24)
+        set(value) { prefs.edit().putLong("interval_hours", value.coerceIn(1, 24)).apply(); schedule() }
+    var notifications: Boolean
+        get() = prefs.getBoolean("notifications", true)
+        set(value) {
+            prefs.edit().putBoolean("notifications", value).apply()
+            if (!value) UpdateNotifier(context).clear() else checkNow()
+        }
     fun lite(): Boolean = appearance == "Lite" || (appearance == "Auto" &&
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).let { manager ->
             val memory = ActivityManager.MemoryInfo(); manager.getMemoryInfo(memory)
             manager.isLowRamDevice || memory.totalMem <= 2L * 1024 * 1024 * 1024
         })
+    private fun constraints() = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
     fun schedule() {
         val manager = WorkManager.getInstance(context)
-        if (!autoCheck) { manager.cancelUniqueWork("ezch-catalog-check"); return }
+        if (!autoCheck) {
+            manager.cancelUniqueWork("ezch-catalog-check")
+            manager.cancelUniqueWork("ezch-catalog-now")
+            return
+        }
         val request = PeriodicWorkRequestBuilder<CatalogSyncWorker>(intervalHours, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED)
-                .setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()).build()
+            .setConstraints(constraints()).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
         manager.enqueueUniquePeriodicWork("ezch-catalog-check", ExistingPeriodicWorkPolicy.UPDATE, request)
+    }
+    fun checkNow() {
+        if (autoCheck) WorkManager.getInstance(context).enqueueUniqueWork("ezch-catalog-now",
+            ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<CatalogSyncWorker>().setConstraints(constraints()).build())
     }
 }
 
-/** Android may defer this work. Installation always stays in the foreground user queue. */
+/** One real update summary, never a notification for an app that is not installed. */
+internal class UpdateNotifier(private val context: Context) {
+    private val settings = UpdateSettings(context)
+    private val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    companion object {
+        const val CHANNEL = "application_updates"
+        const val ID = 2401
+        const val OPEN_UPDATES = "open_updates"
+    }
+    fun clear() {
+        manager.cancel(ID)
+        settings.prefs.edit().remove("notification_fingerprint").apply()
+    }
+    fun publish(updates: List<RemoteApp>) {
+        // Remove notifications from the old per-app implementation during migration.
+        manager.activeNotifications.filter { it.notification.channelId == "catalog" }.forEach { manager.cancel(it.id) }
+        if (updates.isEmpty() || !settings.notifications) { clear(); return }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Обновления приложений",
+            NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Напоминает обновить установленные приложения"
+        })
+        if (!manager.areNotificationsEnabled() || manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) return
+        val fingerprint = updates.sortedBy { it.packageName }.joinToString("|") { "${it.packageName}:${it.versionCode}:${it.sha256}" }
+        if (settings.prefs.getString("notification_fingerprint", null) == fingerprint) return
+        val intent = Intent(context, MainActivity::class.java).putExtra(OPEN_UPDATES, true)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val pending = PendingIntent.getActivity(context, ID, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val names = updates.joinToString(", ") { it.name }
+        val notification = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_update_notification)
+            .setContentTitle("Пора обновить приложения • ${updates.size}")
+            .setContentText(names)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Доступны обновления: $names. Откройте список и выберите приложения."))
+            .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER).setNumber(updates.size)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .extend(NotificationCompat.TvExtender().setContentIntent(pending).setChannelId(CHANNEL))
+            .build()
+        try {
+            manager.notify(ID, notification)
+            // Some TV launchers omit the notification tray. A standard Android
+            // text reminder remains visible without overlay/accessibility permissions.
+            if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) &&
+                (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).isInteractive) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(context.applicationContext,
+                        "EZCH Update: пора обновить приложения (${updates.size})", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+            settings.prefs.edit().putString("notification_fingerprint", fingerprint).apply()
+        } catch (_: SecurityException) { /* Permission can be revoked while posting. Retry after authorization. */ }
+    }
+    fun permissionStatus(): String = when {
+        !settings.notifications -> "Уведомления выключены в EZCH Update"
+        !manager.areNotificationsEnabled() -> "Разрешите уведомления в настройках Android"
+        manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE -> "Канал обновлений выключен в Android"
+        else -> "Уведомления включены. Место показа зависит от оболочки телевизора."
+    }
+}
+
+/** WorkManager survives process exit and reboot; Android may defer the requested interval. */
 class CatalogSyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val settings = UpdateSettings(applicationContext)
@@ -56,28 +134,18 @@ class CatalogSyncWorker(context: Context, parameters: WorkerParameters) : Corout
         val repository = CatalogRepository(applicationContext)
         val apps = repository.load()
         if (repository.offline) return@withContext Result.retry()
-        for (app in apps) {
+        val updates = apps.filter { app ->
+            repository.installedApp(applicationContext.packageManager, app.packageName)?.let { it.versionCode < app.versionCode } == true
+        }
+        UpdateNotifier(applicationContext).publish(updates)
+        for (app in updates) {
             if (isStopped) return@withContext Result.retry()
-            val installed = repository.installedApp(applicationContext.packageManager, app.packageName)
-            if (installed != null && installed.versionCode >= app.versionCode) continue
-            if (settings.autoDownload && installed != null) {
+            if (settings.autoDownload) {
                 try { AppInstaller().stage(applicationContext, app) { _, _ -> check(!isStopped) } }
                 catch (_: Exception) { settings.prefs.edit().putString("background_status", "Не удалось подготовить ${app.name}; повторите загрузку в каталоге").apply() }
             }
-            val key = "notified:${app.packageName}:${app.versionCode}:${app.sha256}"
-            if (settings.prefs.getBoolean(key, false)) continue
-            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(applicationContext,
-                    android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) continue
-            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(NotificationChannel("catalog", "Новые приложения и обновления", NotificationManager.IMPORTANCE_DEFAULT))
-            val intent = Intent(applicationContext, MainActivity::class.java).putExtra("selected_package", app.packageName)
-            val pending = PendingIntent.getActivity(applicationContext, app.packageName.hashCode(), intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            manager.notify(app.packageName.hashCode(), NotificationCompat.Builder(applicationContext, "catalog")
-                .setSmallIcon(R.drawable.ic_launcher).setContentTitle(if (installed == null) "Новое приложение" else "Доступно обновление")
-                .setContentText("${app.name} • ${app.versionName}").setContentIntent(pending).setAutoCancel(true).build())
-            settings.prefs.edit().putBoolean(key, true).apply()
         }
+        settings.prefs.edit().putLong("last_background_check", System.currentTimeMillis()).apply()
         Result.success()
     }
 }

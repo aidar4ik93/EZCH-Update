@@ -21,7 +21,7 @@ class ReleaseUpgradeDeviceTest {
         val filename = arguments.getString("releaseApk")
         org.junit.Assume.assumeNotNull(filename)
         val expectedHash = arguments.getString("releaseSha256") ?: error("Provide pinned release hash")
-        val file = File(context.getExternalFilesDir(null), filename)
+        val file = File(context.cacheDir, filename)
         val hash = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
         assertEquals(expectedHash, hash)
         val info = context.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES)!!

@@ -1,0 +1,307 @@
+package com.example.ezchupdate
+
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.StatFs
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.*
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import com.example.ezchupdate.data.RemoteApp
+import kotlinx.coroutines.delay
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+internal val CinemaRed = Color(0xFFFF3658)
+private val CinemaMuted = Color(0xFFB8B6C2)
+private val CinemaPurple = Color(0xFF9864ED)
+private val categories = listOf("Главная", "Приложения", "Фильмы и ТВ", "YouTube", "Инструменты", "Мои приложения", "Обновления", "Загрузки", "Настройки")
+
+@Composable internal fun PremiumTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = darkColorScheme(primary = CinemaRed, secondary = CinemaPurple,
+        background = Color.Black, surface = Color(0xFF101014), surfaceVariant = Color(0xFF17171C),
+        onSurface = Color.White, onSurfaceVariant = CinemaMuted), content = content)
+}
+
+internal fun category(app: RemoteApp): String {
+    val name = (app.name + app.packageName).lowercase(Locale.ROOT)
+    return when {
+        listOf("youtube", "rutube", "com.vk.tv").any(name::contains) -> "YouTube"
+        listOf("filemanager", "launcher", "ezchupdate", "byedpi", "vpn", "torrserve", "killer", "rustore", "projeng").any(name::contains) -> "Инструменты"
+        else -> "Фильмы и ТВ"
+    }
+}
+
+@Composable internal fun PremiumCatalogScreen(state: CatalogUiState, onReload: () -> Unit,
+    onToggle: (String) -> Unit, onInstall: () -> Unit, onLauncher: () -> Unit, onCancel: () -> Unit) {
+    val context = LocalContext.current
+    val settings = remember { UpdateSettings(context) }
+    var mode by remember { mutableStateOf(settings.appearance) }
+    val lite = remember(mode) { settings.lite() }
+    var section by rememberSaveable { mutableStateOf("Главная") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var favorites by remember { mutableStateOf(settings.prefs.getStringSet("favorites", emptySet())?.toSet().orEmpty()) }
+    var details by remember { mutableStateOf<AppRow?>(null) }
+    var previousFocus by remember { mutableStateOf<FocusRequester?>(null) }
+    val initialFocus = remember { FocusRequester() }
+    var focusInitialized by remember { mutableStateOf(false) }
+    var splash by rememberSaveable { mutableStateOf(true) }
+    var time by remember { mutableStateOf(Date()) }
+    val busy = state.installing != null || state.permissionRequested
+    val rows = state.rows.filter { row ->
+        (query.isBlank() || row.app.name.contains(query, true) || row.app.packageName.contains(query, true)) && when (section) {
+            "Мои приложения" -> row.installed != null
+            "Обновления" -> row.installed != null && row.updateAvailable
+            "Фильмы и ТВ", "YouTube", "Инструменты" -> category(row.app) == section
+            else -> true
+        }
+    }.sortedBy { if (section == "Главная" && it.app.packageName in favorites) 0 else 1 }
+    LaunchedEffect(state.isLoading) { if (!state.isLoading) splash = false }
+    LaunchedEffect(Unit) { while (true) { delay(30_000); time = Date() } }
+    LaunchedEffect(splash, details, section, rows.isEmpty()) {
+        if (!splash && details == null) {
+            if (previousFocus != null) runCatching { previousFocus?.requestFocus() }
+            else if (!focusInitialized && rows.isNotEmpty()) {
+                runCatching { initialFocus.requestFocus() }; focusInitialized = true
+            }
+        }
+    }
+    BackHandler(searching || section != "Главная") {
+        if (searching) { searching = false; query = "" } else section = "Главная"
+    }
+    Surface(Modifier.fillMaxSize(), color = Color.Black) {
+        Box(Modifier.fillMaxSize()) {
+            if (!lite) CinemaGlow()
+            Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 18.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("EZCH UPDATE", fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                        Text("Твой центр приложений • ${state.rows.size} APK", color = CinemaMuted, fontSize = 12.sp)
+                    }
+                    CinemaButton("Поиск", onClick = { searching = !searching })
+                    Spacer(Modifier.width(8.dp))
+                    CinemaButton(if (state.isRefreshing) "Проверяем…" else "Проверить обновления", enabled = !busy && !state.isRefreshing, onClick = onReload)
+                    Spacer(Modifier.width(8.dp))
+                    CinemaButton("Настройки", onClick = { section = "Настройки" })
+                    Spacer(Modifier.width(14.dp))
+                    Text(SimpleDateFormat("HH:mm\ndd MMM", Locale.forLanguageTag("ru")).format(time), color = CinemaMuted, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.weight(1f)) {
+                    Column(Modifier.width(154.dp).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        categories.forEach { item ->
+                            CinemaButton(item, primary = section == item, modifier = Modifier.fillMaxWidth(), onClick = { section = item; previousFocus = null })
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(if (lite) "LITE" else "CINEMA PREMIUM", color = CinemaRed, fontSize = 10.sp, letterSpacing = 1.sp)
+                    }
+                    Spacer(Modifier.width(18.dp))
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        if (searching) {
+                            OutlinedTextField(query, onValueChange = { query = it }, singleLine = true,
+                                label = { Text("Название приложения") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (section == "Настройки") {
+                            SettingsPanel(state, settings, mode, onMode = { mode = it; settings.appearance = it })
+                        } else {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(section, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                if (busy) CinemaButton("Отменить очередь", onClick = onCancel)
+                                else CinemaButton("Установить выбранные (${state.selectedPackages.size})",
+                                    primary = true, enabled = state.selectedPackages.isNotEmpty(), onClick = onInstall)
+                            }
+                            if (state.message != null) Text(state.message, fontSize = 12.sp, color = CinemaMuted,
+                                modifier = Modifier.padding(vertical = 6.dp), maxLines = if (section == "Загрузки") 8 else 2, overflow = TextOverflow.Ellipsis)
+                            if (busy) {
+                                Text("Приложение ${state.completedCount + 1}/${state.totalCount} • ${state.installing?.name ?: "разрешение Android"}", color = CinemaRed, fontSize = 12.sp)
+                                if (state.totalBytes > 0) LinearProgressIndicator(progress = { (state.downloadBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
+                                else LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp))
+                            }
+                            if (section == "Загрузки") {
+                                Text("Завершено: ${state.completedCount} из ${state.totalCount}.\nОшибок: ${state.failures.size}.\nСледующий APK устанавливается после результата Android.\nОчередь сохраняется при перезапуске.", color = CinemaMuted, modifier = Modifier.padding(top = 18.dp))
+                                state.rows.filter { it.app.packageName in state.selectedPackages }.forEach { Text("• ${it.app.name}", color = Color.White, fontSize = 14.sp) }
+                                if (!busy && state.selectedPackages.isNotEmpty()) CinemaButton("Повторить выбранные", onClick = onInstall)
+                                Text("История установок", color = Color.White, modifier = Modifier.padding(top = 16.dp))
+                                com.example.ezchupdate.install.InstallQueueStore(context).history().take(5).forEach { Text(it, color = CinemaMuted, fontSize = 12.sp) }
+                            } else if (rows.isEmpty()) {
+                                Text(if (state.isLoading) "Загрузка каталога…" else "В этом разделе приложений нет", color = CinemaMuted, modifier = Modifier.padding(24.dp))
+                            } else {
+                                LazyVerticalGrid(GridCells.Fixed(3), modifier = Modifier.weight(1f), contentPadding = PaddingValues(10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    itemsIndexed(rows, key = { _, row -> row.app.packageName }) { index, row ->
+                                        val requester = remember(row.app.packageName) { FocusRequester() }
+                                        PremiumCard(row, row.app.packageName in state.selectedPackages,
+                                            row.app.packageName == state.installing?.packageName, lite,
+                                            modifier = Modifier.focusRequester(if (index == 0 && !focusInitialized) initialFocus else requester),
+                                            onClick = { previousFocus = if (index == 0 && !focusInitialized) initialFocus else requester; details = row })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(visible = splash, exit = fadeOut(tween(if (lite) 0 else 180))) { CinemaSplash(lite) }
+        }
+    }
+    details?.let { selected ->
+        val row = state.rows.firstOrNull { it.app.packageName == selected.app.packageName } ?: selected
+        AlertDialog(onDismissRequest = { details = null }, title = { Text(row.app.name) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    AppIcon(row, Modifier.size(72.dp))
+                    Text("Версия ${row.app.versionName} • ${formatBytes(row.app.sizeBytes ?: 0)}\n${category(row.app)}", modifier = Modifier.padding(top = 12.dp))
+                    Text(if (row.installed == null) "Доступно для установки" else "Установлена версия ${row.installed.versionName ?: row.installed.versionCode}", color = CinemaMuted)
+                    Text("Источник: ${java.net.URI(row.app.apkUrl).host}\nSHA-256 и сертификат проверяются перед установкой.", fontSize = 12.sp, color = CinemaMuted, modifier = Modifier.padding(top = 12.dp))
+                    Text("${row.app.packageName}\nSHA-256: ${row.app.sha256}\nСертификат: ${row.app.signerSha256}", fontSize = 10.sp, color = CinemaMuted)
+                    CinemaButton(if (row.app.packageName in favorites) "★ Убрать из избранного" else "☆ В избранное", onClick = {
+                        favorites = if (row.app.packageName in favorites) favorites - row.app.packageName else favorites + row.app.packageName
+                        settings.prefs.edit().putStringSet("favorites", favorites).apply()
+                    })
+                }
+            }, confirmButton = {
+                if (row.updateAvailable) CinemaButton(if (row.app.packageName in state.selectedPackages) "Убрать из очереди" else if (row.installed == null) "Выбрать для установки" else "Выбрать обновление", enabled = !busy,
+                    onClick = { onToggle(row.app.packageName); details = null })
+                else CinemaButton("Открыть", onClick = {
+                    val pm = context.packageManager
+                    val intent = pm.getLeanbackLaunchIntentForPackage(row.app.packageName) ?: pm.getLaunchIntentForPackage(row.app.packageName)
+                    if (intent != null) runCatching { context.startActivity(intent) }
+                    details = null
+                })
+            }, dismissButton = { CinemaButton("Назад", onClick = { details = null }) })
+    }
+}
+
+@Composable private fun PremiumCard(row: AppRow, selected: Boolean, installing: Boolean, lite: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (focused && !lite) 1.06f else 1f, tween(if (lite) 0 else 150), label = "cardFocus")
+    val shape = RoundedCornerShape(16.dp)
+    Card(onClick = onClick, modifier = modifier.height(134.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+        .onFocusChanged { focused = it.isFocused }
+        .shadow(if (focused && !lite) 12.dp else 0.dp, shape, ambientColor = CinemaRed, spotColor = CinemaRed)
+        .border(if (focused) 2.dp else 1.dp, if (focused || selected) CinemaRed else Color(0xFF303038), shape),
+        colors = CardDefaults.cardColors(containerColor = if (focused) Color(0xFF2A171F) else Color(0xFF17171C))) {
+        Row(Modifier.fillMaxSize().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppIcon(row, Modifier.size(60.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(row.app.name, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val version = if (row.installed != null && !row.updateAvailable) row.installed.versionName ?: row.app.versionName else row.app.versionName
+                Text("$version • ${formatBytes(row.app.sizeBytes ?: 0)}", color = CinemaMuted, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 1)
+                Text(category(row.app), color = CinemaMuted, fontSize = 10.sp, lineHeight = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(when { installing -> "Подготовка к установке"; selected -> "✓ Выбрано"; row.installed == null -> "Установить"; row.updateAvailable -> "Обновить"; else -> "Установлено • Открыть" }, color = if (selected || row.updateAvailable) CinemaRed else CinemaMuted, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable internal fun CinemaButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, primary: Boolean = false, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(10.dp)
+    Button(onClick, modifier = modifier.height(40.dp).onFocusChanged { focused = it.isFocused }
+        .border(if (focused) 2.dp else 1.dp, if (focused) Color.White else if (primary) CinemaRed else Color(0xFF34343D), shape),
+        enabled = enabled, shape = shape, colors = ButtonDefaults.buttonColors(containerColor = if (primary) Color(0xFF8D1735) else Color(0xFF17171C), contentColor = Color.White, disabledContentColor = CinemaMuted), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+        Text(text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable private fun CinemaGlow() {
+    Canvas(Modifier.fillMaxSize()) {
+        drawCircle(Brush.radialGradient(listOf(CinemaRed.copy(alpha = 0.12f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.28f, size.height * 0.5f), radius = size.height * 0.75f), radius = size.height * 0.75f, center = androidx.compose.ui.geometry.Offset(size.width * 0.28f, size.height * 0.5f))
+        drawCircle(Brush.radialGradient(listOf(CinemaPurple.copy(alpha = 0.10f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.35f), radius = size.height * 0.65f), radius = size.height * 0.65f, center = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.35f))
+    }
+}
+
+@Composable internal fun CinemaSplash(lite: Boolean) {
+    val phase = if (lite) 0f else {
+        val transition = rememberInfiniteTransition(label = "fourDots")
+        val animated by transition.animateFloat(0f, 4f, infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "sequentialDots")
+        animated
+    }
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        if (!lite) CinemaGlow()
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("EZCH", fontSize = 76.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp)
+            Text("CINEMA PREMIUM", color = CinemaRed, fontSize = 13.sp, letterSpacing = 5.sp)
+            Spacer(Modifier.height(24.dp))
+            Text("EZCH UPDATE", fontSize = 24.sp, letterSpacing = 2.sp)
+            Text("Твой центр приложений.", color = CinemaMuted, fontSize = 15.sp)
+            Spacer(Modifier.height(26.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                repeat(4) { index ->
+                    val distance = kotlin.math.abs(phase - index - 0.5f)
+                    val pulse = if (lite) 0f else (1f - distance * 2f).coerceIn(0f, 1f)
+                    Box(Modifier.size(9.dp).graphicsLayer { scaleX = 1f + pulse * 0.35f; scaleY = scaleX }
+                        .shadow(if (pulse > 0.2f) 8.dp else 0.dp, androidx.compose.foundation.shape.CircleShape, ambientColor = CinemaRed, spotColor = CinemaRed)
+                        .background(CinemaRed.copy(alpha = 0.2f + 0.8f * pulse), androidx.compose.foundation.shape.CircleShape))
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun SettingsPanel(state: CatalogUiState, settings: UpdateSettings, mode: String, onMode: (String) -> Unit) {
+    val context = LocalContext.current
+    var auto by remember { mutableStateOf(settings.autoCheck) }
+    var download by remember { mutableStateOf(settings.autoDownload) }
+    var interval by remember { mutableStateOf(settings.intervalHours) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Оформление", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Auto", "Premium", "Lite").forEach { value -> CinemaButton(if (value == "Auto") "Автоматически" else value, primary = mode == value, onClick = { onMode(value) }) }
+        }
+        Text("Автоматический режим учитывает память устройства. Lite уменьшает анимации и свечение.", color = CinemaMuted, fontSize = 12.sp)
+        CinemaButton("Автоматически проверять: ${if (auto) "включено" else "выключено"}", onClick = { auto = !auto; settings.autoCheck = auto })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1L, 6L, 24L).forEach { hours -> CinemaButton("Каждые $hours ч", primary = interval == hours, enabled = auto, onClick = { interval = hours; settings.intervalHours = hours }) } }
+        CinemaButton("Скачивать обновления заранее: ${if (download) "да" else "нет"}", onClick = { download = !download; settings.autoDownload = download })
+        Text("Фоновая работа учитывает сеть, заряд и хранилище. Установка требует вашего действия и подтверждения Android.", color = CinemaMuted, fontSize = 12.sp)
+        if (Build.VERSION.SDK_INT >= 33) CinemaButton("Разрешить уведомления Android", onClick = { (context as? android.app.Activity)?.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 72) })
+        Text("Информация об устройстве", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        val memory = remember { android.app.ActivityManager.MemoryInfo().also { (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(it) } }
+        val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+        val lastSync = settings.prefs.getLong("last_sync", 0)
+        Text("${Build.MANUFACTURER} ${Build.MODEL}\nAndroid ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\nRAM: ${formatBytes(memory.totalMem)} • свободно: ${formatBytes(StatFs(context.filesDir.path).availableBytes)}\nEZCH Update $version\nПриложений: ${state.rows.size} • обновлений: ${state.rows.count { it.installed != null && it.updateAvailable }}\nСинхронизация: ${if (lastSync == 0L) "ещё не завершена" else SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.forLanguageTag("ru")).format(Date(lastSync))}", color = CinemaMuted, fontSize = 13.sp)
+        Text("Диагностика", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Подпись и SHA-256 проверяются до передачи APK Android. Отсутствие блокировки Play Protect требует отдельного теста на вашем Google TV.", color = CinemaMuted, fontSize = 12.sp)
+        CinemaButton("Экспортировать технический отчёт", onClick = {
+            runCatching {
+                val directory = File(context.cacheDir, "reports").apply { mkdirs() }
+                val file = File(directory, "ezch-diagnostics.txt")
+                // Whitelist fields; never export URLs, intents, account data, or raw server errors.
+                file.writeText("EZCH Update $version\nAndroid API ${Build.VERSION.SDK_INT}\nModel ${Build.MANUFACTURER} ${Build.MODEL}\nRAM ${memory.totalMem}\nFree ${StatFs(context.filesDir.path).availableBytes}\nCatalog ${state.rows.size}\nUpdates ${state.rows.count { it.installed != null && it.updateAvailable }}\nCompleted ${state.completedCount}/${state.totalCount}\nFailures ${state.failures.size}\nLast sync $lastSync\nPlay Protect: not verified\n", Charsets.UTF_8)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.reports", file)
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Экспорт отчёта"))
+            }.onFailure { exportError = "На устройстве нет приложения для отправки отчёта" }
+        })
+        exportError?.let { Text(it, color = CinemaRed) }
+    }
+}
+
+internal fun formatBytes(bytes: Long): String = String.format(Locale.forLanguageTag("ru"), "%.1f МБ", bytes / (1024.0 * 1024.0))

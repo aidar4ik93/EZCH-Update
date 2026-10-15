@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet('app','launcher')][string]$Module = 'app',
+    [switch]$LegacyUpdate,
     [string]$SigningProject = (Join-Path $env:USERPROFILE 'AndroidStudioProjects\EZCHUpdate'),
-    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.6.4.apk'),
+    [string]$Output = (Join-Path $PSScriptRoot '..\dist\EZCH_Update_1.7.0.apk'),
     [string]$ExpectedCertificate = 'ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602',
     [string]$AndroidSdk = (Join-Path $env:LOCALAPPDATA 'Android\Sdk'),
     [string]$JavaHome = (Join-Path $env:ProgramFiles 'Android\Android Studio\jbr')
@@ -63,7 +64,12 @@ try {
     $locationPushed = $true
 
     Write-Host 'Building the release APK...'
-    & $gradle ":${Module}:assembleRelease" '--no-daemon' '--console=plain'
+    $buildArguments = @("${Module}:assembleRelease", '--no-daemon', '--console=plain')
+    if ($LegacyUpdate) {
+        if ($Module -ne 'app') { throw 'LegacyUpdate applies only to the updater.' }
+        $buildArguments += '-PezchLegacyUpdate=true'
+    }
+    & $gradle @buildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Release build failed (exit code $LASTEXITCODE)."
     }
@@ -114,7 +120,7 @@ try {
     }
     $badgingText = ($badgingOutput | ForEach-Object { $_.ToString() }) -join "`n"
     $packageMatch = [regex]::Match($badgingText, "(?m)^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'")
-    $expectedPackage = if ($Module -eq 'launcher') { 'com.example.homeezch.usb' } else { 'com.example.ezchupdate.tvtest' }
+    $expectedPackage = if ($Module -eq 'launcher') { 'com.example.homeezch.usb' } elseif ($LegacyUpdate) { 'com.example.ezchupdate' } else { 'com.example.ezchupdate.tvtest' }
     $moduleBuild = Get-Content -LiteralPath (Join-Path $projectRoot "$moduleDirectory/build.gradle.kts") -Raw
     $expectedCode = [regex]::Match($moduleBuild, 'versionCode\s*=\s*(\d+)').Groups[1].Value
     $expectedVersion = [regex]::Match($moduleBuild, 'versionName\s*=\s*"([^"\r\n]+)"').Groups[1].Value

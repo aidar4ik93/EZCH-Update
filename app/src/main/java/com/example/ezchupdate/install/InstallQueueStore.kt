@@ -56,6 +56,27 @@ class InstallQueueStore(context: Context) {
         preferences.edit().putString("queue", json.toString()).commit()
     }
 
+    fun bindSession(packageName: String, sessionId: Int) {
+        val saved = load() ?: return
+        if (saved.current?.packageName == packageName) save(saved.copy(sessionId = sessionId))
+    }
+
+    fun recordOutcome(app: RemoteApp, success: Boolean) {
+        val history = runCatching { JSONArray(preferences.getString("history", "[]")) }.getOrElse { JSONArray() }
+        val trimmed = JSONArray()
+        for (index in (history.length() - 49).coerceAtLeast(0) until history.length()) trimmed.put(history.getJSONObject(index))
+        trimmed.put(JSONObject().put("name", app.name).put("package", app.packageName)
+            .put("version", app.versionName).put("success", success).put("time", System.currentTimeMillis()))
+        preferences.edit().putString("history", trimmed.toString()).commit()
+    }
+
+    fun history(): List<String> = runCatching {
+        val history = JSONArray(preferences.getString("history", "[]"))
+        (0 until history.length()).map { index -> history.getJSONObject(index).let {
+            "${it.getString("name")} ${it.getString("version")} • ${if (it.getBoolean("success")) "установлено" else "ошибка или отмена"}"
+        } }.reversed()
+    }.getOrDefault(emptyList())
+
     private fun appToJson(app: RemoteApp): JSONObject = JSONObject()
         .put("name", app.name)
         .put("packageName", app.packageName)
@@ -66,6 +87,8 @@ class InstallQueueStore(context: Context) {
         .put("sha256", app.sha256 ?: JSONObject.NULL)
         .put("sizeBytes", app.sizeBytes ?: JSONObject.NULL)
         .put("signerSha256", app.signerSha256 ?: JSONObject.NULL)
+        .put("iconUrl", app.iconUrl ?: JSONObject.NULL)
+        .put("iconSha256", app.iconSha256 ?: JSONObject.NULL)
 
     private fun appFromJson(json: JSONObject): RemoteApp = RemoteApp(
         name = json.getString("name"),
@@ -76,6 +99,8 @@ class InstallQueueStore(context: Context) {
         apkPath = json.getString("apkPath"),
         sha256 = if (json.isNull("sha256")) null else json.getString("sha256"),
         sizeBytes = if (json.isNull("sizeBytes")) null else json.getLong("sizeBytes"),
-        signerSha256 = if (json.isNull("signerSha256")) null else json.getString("signerSha256")
+        signerSha256 = if (json.isNull("signerSha256")) null else json.getString("signerSha256"),
+        iconUrl = json.optString("iconUrl").takeIf { it.isNotBlank() && it != "null" },
+        iconSha256 = json.optString("iconSha256").takeIf { it.isNotBlank() && it != "null" }
     )
 }

@@ -45,7 +45,8 @@ data class CatalogUiState(
 )
 
 class CatalogViewModel @JvmOverloads constructor(application: Application,
-    private val repository: CatalogRepository = CatalogRepository(application.applicationContext)
+    private val repository: CatalogRepository = CatalogRepository(application.applicationContext),
+    private val installOperation: (Context, RemoteApp, (Long, Long) -> Unit) -> Result<Int> = { context, app, progress -> AppInstaller().install(context, app, progress) }
 ) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
     private val installer = AppInstaller()
@@ -53,6 +54,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     private var queue = queueStore.load() ?: InstallQueueState()
     private var needsRecovery = queue.current != null
     private var downloadRunning = false
+    private var hostResumed = false
     private var operationId = 0
     private var loadRunning = false
     private var lastRefreshAt = 0L
@@ -119,6 +121,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     }
 
     fun refreshCatalogIfIdle() {
+        if (!UpdateSettings(appContext).autoCheck) return
         if (!isBusy() && android.os.SystemClock.elapsedRealtime() - lastRefreshAt >= 5 * 60 * 1000L)
             loadCatalog(clearMessage = false)
     }
@@ -209,6 +212,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
 
     /** Continues only work explicitly requested before opening Android settings. */
     fun onHostResumed(context: Context) {
+        hostResumed = true
         if (queue.waitingForPermission) {
             if (installer.canRequestPackageInstalls(context)) {
                 saveQueue(queue.copy(waitingForPermission = false))
@@ -273,7 +277,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     }
 
     private fun installNext() {
-        if (queue.current != null || queue.waitingForPermission || downloadRunning) return
+        if (!hostResumed || queue.current != null || queue.waitingForPermission || downloadRunning) return
         val next = queue.remaining.firstOrNull()
         if (next == null) {
             finishQueue()
@@ -293,7 +297,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         downloadRunning = true
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                installer.install(appContext, next) { bytes, total ->
+                installOperation(appContext, next) { bytes, total ->
                     if (stopDownload.get()) throw InterruptedIOException("Установка отменена")
                     viewModelScope.launch {
                         if (operation == operationId && queue.current?.packageName == next.packageName) {
@@ -339,6 +343,8 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             _uiState.value = _uiState.value.copy(message = "Подтвердите установку ${current.name} в окне Android")
             return
         }
+        // STATUS_SUCCESS is Android's authoritative final result. Package visibility
+        // may hide a successfully installed non-launchable package from this caller.
         val success = result.status == PackageInstaller.STATUS_SUCCESS
         completeCurrent(
             success,
@@ -419,6 +425,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
 
     private fun completeCurrent(success: Boolean, message: String) {
         val current = queue.current ?: return
+        queueStore.recordOutcome(current, success)
         if (!success && current.packageName == "com.example.homeezch.usb") {
             setupPrefs.edit().remove("open_after_install").apply()
         }
@@ -440,7 +447,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             completedCount = queue.completedCount,
             failures = failures,
             message = message,
-            selectedPackages = _uiState.value.selectedPackages - current.packageName
+            selectedPackages = if (success) _uiState.value.selectedPackages - current.packageName else _uiState.value.selectedPackages
         )
         refreshInstalledRows()
         if (!downloadRunning) installNext()
@@ -457,7 +464,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         _uiState.value = _uiState.value.copy(
             installing = null,
             permissionRequested = false,
-            selectedPackages = emptySet(),
+            selectedPackages = _uiState.value.selectedPackages.intersect(_uiState.value.rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()),
             message = message,
             downloadBytes = 0,
             totalBytes = 0
@@ -488,5 +495,12 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     private fun saveQueue(value: InstallQueueState) {
         queue = value
         queueStore.save(value)
+    }
+
+    fun onHostPaused() { hostResumed = false }
+
+    override fun onCleared() {
+        stopDownload.set(true)
+        super.onCleared()
     }
 }

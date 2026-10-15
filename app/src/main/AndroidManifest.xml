@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
 
     <uses-feature
         android:name="android.software.leanback"
@@ -21,6 +23,9 @@
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
         <package android:name="com.example.ezchupdate.tvtest" />
+        <package android:name="com.example.ezchupdate" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="org.amnezia.vpn" />
         <package android:name="com.example.homeezch.usb" />
         <package android:name="io.github.romanvht.byedpi" />
         <package android:name="ru.tiardev.kinotrend" />
@@ -43,6 +48,7 @@
     </queries>
 
     <application
+        android:usesCleartextTraffic="false"
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
@@ -62,5 +68,10 @@
         <receiver
             android:name=".install.InstallResultReceiver"
             android:exported="false" />
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.reports"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/report_paths" />
+        </provider>
     </application>
 </manifest>

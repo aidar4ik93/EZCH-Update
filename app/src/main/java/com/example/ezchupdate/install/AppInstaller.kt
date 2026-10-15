@@ -16,6 +16,7 @@ import com.example.ezchupdate.data.versionCodeCompat
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
+import android.os.StatFs
 
 class AppInstaller {
     fun canRequestPackageInstalls(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
@@ -30,7 +31,7 @@ class AppInstaller {
     ): Result<Int> = runCatching {
         enforceQuarantine(app)
         check(canRequestPackageInstalls(context)) { "Разрешите установку приложений в настройках Android" }
-        val apkFile = downloadApk(context, app, onProgress)
+        val apkFile = stage(context, app, onProgress)
         try {
             installFile(context, app, apkFile).getOrThrow()
         } finally {
@@ -47,14 +48,39 @@ class AppInstaller {
     }
 
     private fun enforceQuarantine(app: RemoteApp) {
+        check(app.installable) { "Нет проверенного APK: ${app.name}" }
         check(!QuarantinedApks.isQuarantined(app)) {
-            "Этот файл временно исключён из каталога после проверки безопасности: ${app.name}"
+            "Этот файл на карантине до завершения проверки: ${app.name}"
         }
+    }
+
+    /** Background prefetch only stages verified bytes, never an install session. */
+    fun stage(context: Context, app: RemoteApp, onProgress: (Long, Long) -> Unit = { _, _ -> }): File {
+        enforceQuarantine(app)
+        require(app.sha256?.matches(Regex("[a-fA-F0-9]{64}")) == true &&
+            app.signerSha256?.matches(Regex("[a-fA-F0-9]{64}")) == true &&
+            app.sizeBytes != null && app.sizeBytes in 1..MAX_APK_BYTES) {
+            "Каталог не содержит данных проверки APK: ${app.name}"
+        }
+        val directory = File(context.cacheDir, "downloads").apply { mkdirs() }
+        val cached = File(directory, "${app.sha256}.apk")
+        if (cached.isFile) {
+            val verified = runCatching { validateApk(context.packageManager, cached, app) }.isSuccess
+            if (verified) { onProgress(cached.length(), cached.length()); return cached }
+            cached.delete()
+        }
+        val downloaded = downloadApk(context, app, onProgress)
+        try { validateApk(context.packageManager, downloaded, app) }
+        catch (error: Exception) { downloaded.delete(); throw error }
+        return downloaded
     }
 
     private fun downloadApk(context: Context, app: RemoteApp, onProgress: (Long, Long) -> Unit): File {
         val directory = File(context.cacheDir, "downloads").apply { mkdirs() }
-        val apkFile = File(directory, "${app.packageName}-${app.versionCode}.apk")
+        check(StatFs(directory.absolutePath).availableBytes >= (app.sizeBytes ?: MAX_APK_BYTES) * 2 + 16 * 1024 * 1024) {
+            "Недостаточно свободного места для загрузки и установки ${app.name}"
+        }
+        val apkFile = File.createTempFile("apk-", ".part", directory)
         val connection = GoogleDriveDownload.open(app.apkUrl)
         try {
             val total = connection.contentLengthLong
@@ -69,6 +95,7 @@ class AppInstaller {
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         downloaded += count
+                        check(downloaded <= MAX_APK_BYTES) { "APK превышает допустимый размер" }
                         check(app.sizeBytes == null || downloaded <= app.sizeBytes) { "Размер загрузки превышает каталог: ${app.name}" }
                         val now = System.currentTimeMillis()
                         if (now - lastUpdate >= 150) {
@@ -81,7 +108,9 @@ class AppInstaller {
             check(downloaded > 0) { "Сервер вернул пустой APK: ${app.name}" }
             check(total < 0 || downloaded == total) { "APK загружен не полностью: ${app.name}" }
             onProgress(downloaded, total)
-            return apkFile
+            val destination = File(directory, "${app.sha256}.apk")
+            check(apkFile.renameTo(destination)) { "Не удалось сохранить APK" }
+            return destination
         } catch (error: Exception) {
             apkFile.delete()
             throw error
@@ -120,6 +149,35 @@ class AppInstaller {
             ?: error("Загруженный файл ${app.name} не является APK")
         check(archive.packageName == app.packageName) { "Имя пакета APK не совпадает с каталогом: ${app.name}" }
         check(archive.versionCodeCompat() == app.versionCode) { "Версия APK не совпадает с каталогом: ${app.name}" }
+        check(archive.versionName == app.versionName) { "Название версии APK не совпадает с каталогом: ${app.name}" }
+        check(archive.splitNames.isNullOrEmpty()) {
+            "${app.name}: нужен полный APK, отдельные части приложения не поддерживаются"
+        }
+        val archiveInfo = checkNotNull(archive.applicationInfo) { "Не удалось прочитать манифест ${app.name}" }
+        archiveInfo.sourceDir = apkFile.absolutePath
+        archiveInfo.publicSourceDir = apkFile.absolutePath
+        packageManager.getResourcesForApplication(archiveInfo).assets.openXmlResourceParser("AndroidManifest.xml").use { xml ->
+            while (xml.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                if (xml.eventType == org.xmlpull.v1.XmlPullParser.START_TAG) {
+                    check(!(xml.name == "manifest" && !xml.getAttributeValue(null, "split").isNullOrBlank()) &&
+                        xml.name != "uses-split" && !xml.getAttributeBooleanValue(
+                            "http://schemas.android.com/apk/res/android", "isSplitRequired", false)) {
+                        "${app.name}: требуется комплект split APK; выберите полный универсальный APK"
+                    }
+                }
+                xml.next()
+            }
+        }
+        java.util.zip.ZipFile(apkFile).use { zip ->
+            val nativeAbis = zip.entries().asSequence().map { it.name }
+                .filter { it.startsWith("lib/") && it.endsWith(".so") }.map { it.split('/')[1] }.toSet()
+            check(nativeAbis.isEmpty() || Build.SUPPORTED_ABIS.any { it in nativeAbis }) {
+                "${app.name}: APK не поддерживает процессор этого устройства (${Build.SUPPORTED_ABIS.joinToString()})"
+            }
+        }
+        check(archive.applicationInfo?.minSdkVersion?.let { it <= Build.VERSION.SDK_INT } != false) {
+            "${app.name}: требуется более новая версия Android"
+        }
         val archiveSigners = currentSignerDigests(archive)
         check(archiveSigners.isNotEmpty()) { "Не удалось проверить подпись APK: ${app.name}" }
         app.signerSha256?.let { expectedCertificate ->
@@ -179,6 +237,8 @@ class AppInstaller {
         }
         val sessionId = installer.createSession(parameters)
         try {
+            // Persist before commit; Android can replace this process during self-update.
+            InstallQueueStore(context).bindSession(app.packageName, sessionId)
             installer.openSession(sessionId).use { session ->
                 apkFile.inputStream().use { input ->
                     session.openWrite("base.apk", 0, apkFile.length()).use { output ->
@@ -200,4 +260,6 @@ class AppInstaller {
         }
         return sessionId
     }
+
+    companion object { const val MAX_APK_BYTES = 1024L * 1024 * 1024 }
 }

@@ -13,7 +13,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  configuration:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.credential.outputs.ready }}
+    steps:
+      - name: Check server credential configuration
+        id: credential
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+        shell: bash
+        run: |
+          if [ -n "$GOOGLE_DRIVE_API_KEY" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Drive synchronization is not configured: add GOOGLE_DRIVE_API_KEY restricted to Drive API. The previous catalog is preserved.' >> "$GITHUB_STEP_SUMMARY"
+          fi
   sync:
+    needs: configuration
+    if: needs.configuration.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -31,15 +50,22 @@ jobs:
           packages: platform-tools
           cmdline-tools-version: '12266719'
           log-accepted-android-sdk-licenses: false
+      - name: Prepare icon renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y librsvg2-bin
+          python3 -m pip install 'Pillow==11.3.0'
       - name: Verify synchronization behavior
-        run: python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+        run: python3 -m unittest discover -s scripts -p 'test_*catalog*.py' -v
       - name: Prepare Android SDK build tools
         shell: bash
         run: |
           sdkmanager 'build-tools;36.0.0'
           test -f "$ANDROID_HOME/build-tools/36.0.0/aapt2"
           test -f "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar"
-      - name: Synchronize and verify the complete public folder
+      - name: Synchronize and verify the complete folder through Drive API
+        env:
+          GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
         run: |
           python3 scripts/sync-google-drive-catalog.py --sdk "$ANDROID_HOME" --keep-project-releases
           cp apps.json app/src/main/assets/apps.json
@@ -58,7 +84,7 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json
+          git add -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json catalog-icons
           git commit -m 'Update Google Drive application catalog'
           # Never replay an older verified snapshot over a release published
           # while the complete folder scan was running. The next run rescans.

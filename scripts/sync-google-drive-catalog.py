@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Verify public Google Drive APKs and atomically publish a complete catalog.
 
-No Google login or secret is shipped in the Android application. Public-folder
-HTML is a compatibility fallback: unknown or paginated responses fail closed.
+No Google login or secret is shipped in the Android application. Discovery uses
+Drive v3 with pagination; HTML folder scraping is deliberately unsupported.
 """
 import argparse
-import ast
+from datetime import datetime
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import hashlib
@@ -39,23 +40,10 @@ def download_url(file_id):
         raise SyncError("Invalid Google Drive file ID")
     return "https://drive.usercontent.google.com/download?id=" + file_id + "&export=download&confirm=t"
 
-def parse_folder(source, folder_id):
-    match = re.search(r"window\['_DRIVE_ivd'\]\s*=\s*('(?:[^'\\]|\\.)*');", source)
-    if not match:
-        raise SyncError("Google Drive folder is private or its public listing format changed; catalog preserved")
-    try:
-        payload = json.loads(ast.literal_eval(match[1].replace(r"\/", "/")))
-    except (ValueError, SyntaxError, TypeError) as error:
-        raise SyncError("Invalid Google Drive listing") from error
-    if not isinstance(payload, list) or len(payload) < 2 or not isinstance(payload[0], list):
-        raise SyncError("Invalid Google Drive folder response")
-    if payload[1] is not None or len(payload[0]) >= 50:
-        raise SyncError("Google Drive listing needs pagination; catalog preserved rather than truncated")
+def parse_files(entries, folder_id):
     files, seen = [], set()
-    for item in payload[0]:
-        if not isinstance(item, list) or len(item) < 14:
-            raise SyncError("Incomplete Google Drive file metadata")
-        file_id, parents, name, mime = item[:4]
+    for item in entries:
+        file_id, parents, name, mime = (item.get(key) for key in ("id", "parents", "name", "mimeType"))
         if not isinstance(file_id, str) or not ID.fullmatch(file_id) or file_id in seen or parents != [folder_id]:
             raise SyncError("Invalid/duplicate Drive ID or file outside the source folder")
         seen.add(file_id)
@@ -65,29 +53,64 @@ def parse_folder(source, folder_id):
             raise SyncError("Google Drive file has no name")
         if not name.lower().endswith(".apk"):
             continue
-        size, modified = item[13], item[10]
-        if type(size) is not int or not 0 < size <= common.MAX_APK_BYTES or type(modified) is not int:
+        try:
+            size = int(item["size"])
+            modified = int(datetime.fromisoformat(item["modifiedTime"].replace("Z", "+00:00")).timestamp() * 1000)
+        except (KeyError, ValueError, TypeError) as error:
+            raise SyncError("Incomplete Drive metadata") from error
+        if not 0 < size <= common.MAX_APK_BYTES:
             raise SyncError("Google Drive APK has invalid size/modification metadata")
         files.append(DriveFile(file_id, name, size, modified))
-    if not files:
-        raise SyncError("No public APKs found; existing catalog preserved")
     return sorted(files, key=lambda item: item.id)
 
-class PublicDrive:
-    def __init__(self, folder_id=FOLDER_ID):
+class DriveApi:
+    def __init__(self, folder_id=FOLDER_ID, api_key=None, access_token=None, reader=None):
         if not ID.fullmatch(folder_id):
             raise SyncError("Invalid source folder ID")
         self.folder_id = folder_id
+        self.api_key = api_key or os.environ.get("GOOGLE_DRIVE_API_KEY")
+        self.access_token = access_token or os.environ.get("GOOGLE_DRIVE_ACCESS_TOKEN")
+        self.reader = reader
+
+    def _page(self, params):
+        if self.reader:
+            return self.reader(params)
+        if not self.api_key and not self.access_token:
+            raise SyncError("Configure server-side GOOGLE_DRIVE_API_KEY (public folder) or GOOGLE_DRIVE_ACCESS_TOKEN; catalog preserved")
+        if self.api_key and not self.access_token:
+            params = {**params, "key": self.api_key}
+        headers = {"User-Agent": "EZCH-Catalog-Sync/3"}
+        if self.access_token:
+            headers["Authorization"] = "Bearer " + self.access_token
+        request = urllib.request.Request("https://www.googleapis.com/drive/v3/files?" + urllib.parse.urlencode(params), headers=headers)
+        # Never forward Authorization to a redirect host.
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args): return None
+        try:
+            with urllib.request.build_opener(NoRedirect()).open(request, timeout=45) as response:
+                raw = response.read(8 * 1024 * 1024 + 1)
+            if len(raw) > 8 * 1024 * 1024: raise SyncError("Drive response exceeds limit")
+            return json.loads(raw)
+        except urllib.error.HTTPError as error:
+            raise SyncError("Drive API HTTP " + str(error.code) + "; catalog preserved") from None
 
     def list_files(self):
-        request = urllib.request.Request("https://drive.google.com/drive/folders/" + self.folder_id,
-            headers={"User-Agent": "EZCH-Catalog-Sync/2", "Cache-Control": "no-cache"})
-        opener = urllib.request.build_opener(common.HttpsRedirectHandler())
-        with opener.open(request, timeout=45) as response:
-            raw = response.read(16 * 1024 * 1024 + 1)
-        if len(raw) > 16 * 1024 * 1024:
-            raise SyncError("Google Drive listing is too large")
-        return parse_folder(raw.decode("utf-8"), self.folder_id)
+        entries, token, tokens = [], None, set()
+        while True:
+            params = {"q": "'" + self.folder_id + "' in parents and trashed = false", "pageSize": 1000,
+                "fields": "nextPageToken,incompleteSearch,files(id,name,mimeType,size,modifiedTime,parents)",
+                "supportsAllDrives": "true", "includeItemsFromAllDrives": "true"}
+            if token: params["pageToken"] = token
+            page = self._page(params)
+            if page.get("incompleteSearch") or not isinstance(page.get("files"), list):
+                raise SyncError("Incomplete Drive API search; catalog preserved")
+            entries.extend(page["files"])
+            if len(entries) > 10000: raise SyncError("Folder exceeds supported size")
+            token = page.get("nextPageToken")
+            if not token: break
+            if not isinstance(token, str) or token in tokens: raise SyncError("Invalid Drive pagination")
+            tokens.add(token)
+        return parse_files(entries, self.folder_id)
 
     def download(self, item, cache):
         # Download bytes afresh: same-name/same-size replacements must not reuse old hashes.
@@ -119,7 +142,8 @@ class PublicDrive:
 
 def active_project_catalog(apps):
     if any(app["packageName"] == "com.example.ezchupdate.tvtest" for app in apps):
-        return [app for app in apps if app["packageName"] != "com.example.ezchupdate"]
+        return [app for app in apps if app["packageName"] != "com.example.ezchupdate" or
+                (app.get("versionCode", 0) >= 26 and app.get("apkUrl", "").startswith("https://github.com/aidar4ik93/EZCH-Update/releases/download/"))]
     return apps
 
 def sync(api, cache, output, sdk, keep_project_releases=True):
@@ -142,6 +166,14 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
                         continue
                     app = {**metadata, "apkUrl": download_url(item.id), "apkPath": "/" + item.name,
                         "sha256": sha, "sizeBytes": item.size}
+                    icon_spec = importlib.util.spec_from_file_location("catalog_icons", Path(__file__).with_name("catalog-icons.py"))
+                    icons = importlib.util.module_from_spec(icon_spec); icon_spec.loader.exec_module(icons)
+                    icon_path = Path(output).parent / "catalog-icons" / (sha + ".png")
+                    try:
+                        icon_hash = icons.extract(path, inspector.aapt2, icon_path)
+                        app.update(iconUrl="https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/" + icon_path.name, iconSha256=icon_hash)
+                    except (icons.IconError, OSError) as error:
+                        print("Icon unavailable for " + item.name + ": " + str(error), file=sys.stderr)
                     previous = packages.get(app["packageName"])
                     if previous is None or (-app["versionCode"], app["apkUrl"]) < (-previous["versionCode"], previous["apkUrl"]):
                         packages[app["packageName"]] = app
@@ -174,7 +206,7 @@ def main():
     parser.add_argument("--keep-project-releases", action="store_true")
     args = parser.parse_args()
     try:
-        sync(PublicDrive(args.folder_id), args.cache_dir, args.output, args.sdk, args.keep_project_releases)
+        sync(DriveApi(args.folder_id), args.cache_dir, args.output, args.sdk, args.keep_project_releases)
     except (SyncError, OSError, ValueError) as error:
         print("Google Drive synchronization failed: " + str(error), file=sys.stderr)
         return 1

@@ -8,11 +8,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.ezchupdate.tvtest"
+        applicationId = if (providers.gradleProperty("ezchLegacyUpdate").orNull == "true") "com.example.ezchupdate" else "com.example.ezchupdate.tvtest"
         minSdk = 26
         targetSdk = 37
-        versionCode = 25
-        versionName = "1.6.4"
+        versionCode = 30
+        versionName = "1.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.8.2")

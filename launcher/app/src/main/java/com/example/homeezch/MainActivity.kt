@@ -175,7 +175,7 @@ class MainActivity : ComponentActivity() {
             } else {
 
                 val visibleApps = remember(installedApps, storedOrder) {
-                    val all = installedApps + LaunchApp("EZCH Store", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java))
+                    val all = installedApps + LaunchApp("EZCH Store", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java)) + LaunchApp("Ai EvA — диагностика", ComponentName(this@MainActivity, EvaDiagnosticsActivity::class.java))
                     val byKey = all.associateBy { it.component?.flattenToString() ?: "ezch-store" }
                     orderedKeys(storedOrder, byKey.keys.toList()).mapNotNull(byKey::get)
                 }

@@ -22,6 +22,7 @@
 
     <!-- Доступ к списку запускаемых приложений -->
     <queries>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
         <package android:name="com.example.ezchupdate.tvtest" />
         <package android:name="com.alphainventor.filemanager" />
         <package android:name="com.android.tv.settings" />
@@ -55,6 +56,17 @@
         android:roundIcon="@drawable/ezch_launcher_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.HomeEZCH">
+
+        <activity android:name=".EvaDiagnosticsActivity"
+            android:exported="false" android:screenOrientation="landscape" />
+        <service android:name=".EvaVoiceService" android:exported="true"
+            android:label="Ai EvA (эксперимент)"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/eva_voice_interaction" />
+        </service>
+        <service android:name=".EvaSessionService" android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
 
         <receiver android:name=".install.InstallResultReceiver" android:exported="false" />
         <service android:name=".WeeklyCleanupService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />

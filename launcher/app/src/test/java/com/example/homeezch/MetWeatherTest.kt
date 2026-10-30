@@ -3,6 +3,18 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class MetWeatherTest {
+    @Test fun unchangedForecastSelectsNewCurrentHourInsteadOfRevivingOldTemperature() {
+        val forecast = JSONObject("""{"properties":{"timeseries":[
+            {"time":"2026-10-16T08:00:00Z","data":{"instant":{"details":{"air_temperature":8}}}},
+            {"time":"2026-10-16T10:00:00Z","data":{"instant":{"details":{"air_temperature":12}}}}
+        ]}}""")
+        val saved = JSONObject().put("temperature", 8).put("forecast", forecast)
+        val now = java.time.Instant.parse("2026-10-16T10:00:00Z").toEpochMilli()
+        assertEquals(12, MetWeather.decodeResponse(MetResponse(304), saved, now).first.temperature)
+    }
+    @Test(expected = IllegalStateException::class) fun unchangedResponseWithoutHourlyCacheCannotBecomeFreshWeather() {
+        MetWeather.decodeResponse(MetResponse(304), JSONObject().put("temperature", 8), System.currentTimeMillis())
+    }
     @Test fun selectsNearestCurrentForecastAndRoundsTemperature() {
         val now = java.time.Instant.parse("2026-10-12T08:30:00Z").toEpochMilli()
         val json = JSONObject("""{"properties":{"timeseries":[

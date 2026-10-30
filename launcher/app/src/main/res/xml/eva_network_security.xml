@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Plain HTTP is needed for smart-home devices inside the owner's home network (Home Assistant, LAN gateways).
+         SmartHome.validUrl() refuses http:// for anything that is not a private address;
+         every other connection of the launcher uses HTTPS. -->
+    <base-config cleartextTrafficPermitted="true" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+    <!-- GigaChat (Сбер) servers use the Минцифры root «Russian Trusted Root CA», which Android does not ship.
+         It is trusted only for these GigaChat hosts, in addition to the system roots. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">giga.chat</domain>
+        <domain includeSubdomains="false">ngw.devices.sberbank.ru</domain>
+        <domain includeSubdomains="false">gigachat.devices.sberbank.ru</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/russian_trusted_root_ca" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,1 @@
+{"voice":"Microsoft Irina Desktop","sampleRate":16000,"bits":16,"channels":1,"fixtures":[{"name":"num","wakeEndMs":530},{"name":"zona","wakeEndMs":530},{"name":"weather","wakeEndMs":530},{"name":"negative","wakeEndMs":-1}]}

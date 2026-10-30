@@ -1,0 +1,5 @@
+Ai EvA offline Russian recognition uses Vosk API 0.3.75 (Apache-2.0), JNA 5.18.1 (LGPL-2.1-or-later or Apache-2.0, Apache option) and vosk-model-small-ru-0.22 (Apache-2.0).
+Model source: https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+Model SHA-256: 961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4
+Vosk: https://github.com/alphacep/vosk-api
+JNA: https://github.com/java-native-access/jna

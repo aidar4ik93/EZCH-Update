@@ -33,8 +33,8 @@ class RemoteNavigationTest {
         }
     }
     @Test fun repeatedNavigationKeepsDesktopAlive() {
-        ui.waitUntil(10000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
-        ui.onNodeWithText("EZCH Store").assertIsFocused()
+        ui.waitUntil(10000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         repeat(25) {
             repeat(5) { key(KeyEvent.KEYCODE_DPAD_RIGHT) }
             repeat(5) { key(KeyEvent.KEYCODE_DPAD_LEFT) }

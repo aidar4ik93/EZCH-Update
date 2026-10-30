@@ -18,6 +18,8 @@ internal fun Modifier.remoteInput(
         val key = event.nativeKeyEvent
         val center = key.keyCode == NativeKey.KEYCODE_DPAD_CENTER || key.keyCode == NativeKey.KEYCODE_ENTER || key.keyCode == NativeKey.KEYCODE_NUMPAD_ENTER
         when {
+            // Hardware volume must keep reaching Android during edit/save and on every held-key repeat.
+            key.keyCode !in setOf(NativeKey.KEYCODE_DPAD_LEFT, NativeKey.KEYCODE_DPAD_RIGHT, NativeKey.KEYCODE_DPAD_UP, NativeKey.KEYCODE_DPAD_DOWN, NativeKey.KEYCODE_DPAD_CENTER, NativeKey.KEYCODE_ENTER, NativeKey.KEYCODE_NUMPAD_ENTER, NativeKey.KEYCODE_BACK, NativeKey.KEYCODE_MENU) -> false
             key.keyCode == NativeKey.KEYCODE_BACK -> { press.reset(); false }
             blocked -> { press.reset(); true }
             key.keyCode == NativeKey.KEYCODE_MENU -> {

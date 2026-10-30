@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- The model lives in its own process: a big allocation or a native crash never takes HOME down. -->
+        <service android:name="com.example.homeezch.llm.EvaLlmService"
+            android:process=":llm" android:exported="false" />
+    </application>
+</manifest>

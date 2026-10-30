@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Animatable
 import kotlinx.coroutines.CancellationException
 import android.content.Intent
@@ -35,6 +36,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
@@ -52,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private val blue = Color(0xFF48B9FF)
 private val panel = Color(0xFF131F31)
@@ -72,11 +76,20 @@ private val artCache = object :
 }
 
 class MainActivity : ComponentActivity() {
+    private val remotePress = RemoteButtonPress()
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean =
+        remotePress.handle(this, event, defaults = true) || super.onKeyDown(keyCode, event)
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean =
+        remotePress.handle(this, event, defaults = true) || super.onKeyUp(keyCode, event)
+
+    private val renderMonitor by lazy { LauncherRenderMonitor(this) }
 
     private var homeReset by mutableIntStateOf(0)
     private var homeMenu by mutableIntStateOf(0)
+    private var voiceStart by mutableIntStateOf(0)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.getBooleanExtra("ezch.voice.start", false)) voiceStart++
         if (intent.getBooleanExtra("ezch.home.menu", false)) homeMenu++ else homeReset++
     }
     private var sourceGeneration by mutableIntStateOf(0)
@@ -100,6 +113,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStart() {
         super.onStart()
+        renderMonitor.start()
         runCatching { inputManager?.registerCallback(inputs, Handler(Looper.getMainLooper())) }
         // These broadcasts originate from the system, not from an app-owned action.
         val filter = IntentFilter().apply {
@@ -122,13 +136,27 @@ class MainActivity : ComponentActivity() {
         observing = true
     }
     override fun onStop() {
+        com.example.homeezch.phone.PhoneRemote.home = null
+        remotePress.reset()
+        renderMonitor.stop()
         if (observing) { unregisterReceiver(changes); observing = false }
         runCatching { inputManager?.unregisterCallback(inputs) }
         super.onStop()
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= 10) com.example.homeezch.ai.EvaEngine.release()
+        if (level in 10..19 || level >= 40) {
+            artCache.evictAll()
+            renderMonitor.memoryPressure()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        com.example.homeezch.phone.PhoneRemote.home = java.lang.ref.WeakReference(this)
+        HomeStartup.shown(this)
         immersiveDesktop()
         sourceGeneration++
         appGeneration++
@@ -136,10 +164,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EzchDiag.init(this, "HOME")
         WeeklyCleanup.schedule(this)
+        com.example.homeezch.phone.PhoneRemote.start(this)
+        com.example.homeezch.ai.CinemaMode.start(this)
+        if (intent.getBooleanExtra("ezch.voice.start", false)) voiceStart++
         if (intent.getBooleanExtra("ezch.home.menu", false)) homeMenu++ else homeReset++
+        // Claude r24: the desktop and the store always paint an opaque wallpaper over the whole screen, so the
+        // theme's light window background was one more full-screen fill for the GPU on every frame.
+        window.setBackgroundDrawable(null)
 
         setContent {
+            val profile by renderMonitor.profile.collectAsStateWithLifecycle()
+            CompositionLocalProvider(LocalRenderProfile provides profile) {
             androidx.compose.material3.MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme(
                 primary = Color(0xFF80B8FF), surface = Color(0xFF142137), background = Color(0xFF050A14)
             )) {
@@ -150,9 +187,8 @@ class MainActivity : ComponentActivity() {
             var weatherReady by remember { mutableStateOf(false) }
             var appsReady by remember { mutableStateOf(false) }
             var storeOpen by remember { mutableStateOf(false) }
-            var lastFocused by remember { mutableStateOf<String?>(null) }
-            var premium by remember { mutableStateOf(LauncherPrefs.isPremium(this@MainActivity)) }
-            LaunchedEffect(sourceGeneration) { premium = effectivePremium(this@MainActivity) }
+            val lastFocused = remember { FocusMemory() }
+            val premium = profile.premium
             val storedOrder = remember { LauncherPrefs.loadOrder(this@MainActivity) }
 
             LaunchedEffect(appGeneration) {
@@ -162,7 +198,7 @@ class MainActivity : ComponentActivity() {
                 appsReady = true
             }
 
-            LaunchedEffect(homeReset) { if (homeReset > 0) { storeOpen = false; lastFocused = null } }
+            LaunchedEffect(homeReset) { if (homeReset > 0) { storeOpen = false; lastFocused.key = null } }
             LaunchedEffect(homeMenu) { if (homeMenu > 0) storeOpen = false }
             BackHandler(storeOpen) {
                 storeOpen = false
@@ -175,20 +211,20 @@ class MainActivity : ComponentActivity() {
             } else {
 
                 val visibleApps = remember(installedApps, storedOrder) {
-                    val all = installedApps + LaunchApp("EZCH Store", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java))
+                    val all = installedApps + LaunchApp("Магазин EZCH", null) + LaunchApp("Файловый менеджер", ComponentName(this@MainActivity, FileBrowserActivity::class.java))
                     val byKey = all.associateBy { it.component?.flattenToString() ?: "ezch-store" }
                     orderedKeys(storedOrder, byKey.keys.toList()).mapNotNull(byKey::get)
                 }
 
                 HomeScreen(
-                    apps = visibleApps, appsReady = appsReady, homeReset = homeReset, homeMenu = homeMenu,
+                    apps = visibleApps, appsReady = appsReady, homeReset = homeReset, homeMenu = homeMenu, voiceStart = voiceStart,
                     consumeReset = { homeReset = 0 }, consumeMenu = { homeMenu = 0 },
                     weatherReady = weatherReady,
-                    preferredFocus = lastFocused, onFocused = { lastFocused = it },
+                    preferredFocus = lastFocused.key, onFocused = { lastFocused.key = it },
                     refreshSources = sourceGeneration,
                     premium = premium,
                     onPremiumChange = {
-                        premium = effectivePremium(this@MainActivity)
+                        renderMonitor.refresh()
                     },
                     onLaunch = { app ->
 
@@ -204,6 +240,7 @@ class MainActivity : ComponentActivity() {
                                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
                                 )
+                                com.example.homeezch.ai.RecentApps.record(this@MainActivity, component.flattenToString())
                             }.onFailure {
                                 Toast.makeText(this@MainActivity, "Не удалось открыть ${app.name}", Toast.LENGTH_LONG).show()
                                 appGeneration++
@@ -213,6 +250,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
             LaunchSetup { weatherReady = true }
+            }
             }
         }
     }
@@ -229,9 +267,12 @@ internal fun AppTile(
 
     var focused by remember { mutableStateOf(false) }
 
-    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(210), label = "appFocus")
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "appHalo")
-    val iconScale by animateFloatAsState(if (focused) 1.08f else 1f, tween(210), label = "iconFocus")
+    val heavy = LocalRenderProfile.current.heavyEffects
+    // Focus motion is a cheap RenderThread transform: animate it on every device (1.5–2 GB TVs too);
+    // only the multi-ring glow is reduced on weak hardware. Snapping here made the desktop feel jerky.
+    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(150, easing = FastOutSlowInEasing), label = "appFocus")
+    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(if (heavy) 220 else 160), label = "appHalo")
+    val iconScale by animateFloatAsState(if (focused) 1.06f else 1f, tween(150, easing = FastOutSlowInEasing), label = "iconFocus")
     val image = rememberAppArtwork(app.component)
     val shape = AppCardShape
 
@@ -263,14 +304,14 @@ internal fun AppTile(
                 bitmap = image,
                 contentDescription = app.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().height(62.dp * AppCardScale).padding(top = 9.dp * AppCardScale).graphicsLayer { scaleX = iconScale; scaleY = iconScale }
+                // Claude r24: scaled while drawing, not in its own layer: one RenderNode less per card on every frame.
+                modifier = Modifier.fillMaxWidth().height(55.dp * AppCardScale).padding(top = 7.dp * AppCardScale)
+                    .drawWithContent { val s = iconScale; scale(s, s) { this@drawWithContent.drawContent() } }
             )
 
         } else if (app.component == null) {
-            Image(painter = painterResource(R.drawable.ezch_brand), contentDescription = app.name,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().height(62.dp * AppCardScale).padding(top = 9.dp * AppCardScale)
-                    .graphicsLayer { scaleX = iconScale; scaleY = iconScale })
+            // Logo is decoding in the background (one frame or two); keep the card light meanwhile.
+            Spacer(Modifier.fillMaxWidth().height(55.dp * AppCardScale))
         } else {
 
             Box(
@@ -285,17 +326,18 @@ internal fun AppTile(
             }
         }
 
+        // Same shaded rounded card without a separate clip layer (the brush is drawn with the card shape).
         Box(
             Modifier
                 .fillMaxSize()
-                .clip(shape)
                 .background(
                     Brush.verticalGradient(
                         listOf(
                             Color.Transparent,
                             Color(0x66000713)
                         )
-                    )
+                    ),
+                    shape
                 )
         )
 
@@ -303,83 +345,17 @@ internal fun AppTile(
             app.name,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
+            fontSize = if (' ' !in app.name.trim() && app.name.length > 9) 10.sp else 11.sp,
+            lineHeight = 12.sp,
+            maxLines = if (' ' in app.name.trim()) 2 else 1,
+            softWrap = ' ' in app.name.trim(),
             overflow = TextOverflow.Ellipsis,
+            // Centered and inset past the oval corners: left-aligned labels were clipped («ift», «auncher»).
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp * AppCardScale)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth().padding(start = 11.dp * AppCardScale, end = 11.dp * AppCardScale, bottom = 7.dp * AppCardScale)
         )
-    }
-}
-
-@Composable
-internal fun PortTile(
-    title: String,
-    width: Dp,
-    onFocus: () -> Unit,
-    onClick: () -> Unit,
-    connected: Boolean = false,
-    status: String? = null,
-    kind: TvSourceKind? = null,
-    modifier: Modifier = Modifier
-) {
-
-    var focused by remember { mutableStateOf(false) }
-
-    val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(170), label = "portFocus")
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "portHalo")
-    val pulse = remember { Animatable(0f) }
-    val connectionGlow by animateFloatAsState(if (connected) .32f else .14f, tween(900), label = "connectionGlow")
-    var previous by remember { mutableStateOf(connected) }
-    val accent = if (kind == TvSourceKind.HDMI && Regex("(?:^|\\D)2(?:\\D|$)").containsMatchIn(title)) Gold else Ice
-    LaunchedEffect(connected) {
-        if (connected && !previous) {
-            pulse.animateTo(0.65f, tween(450))
-            pulse.animateTo(0f, tween(2200))
-        } else pulse.snapTo(0f)
-        previous = connected
-    }
-
-    Column(
-        modifier = modifier
-            .width(width)
-            .height(84.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .focusHalo({ glow }, accent)
-            .clip(DesktopShape)
-            .background(
-                Brush.verticalGradient(listOf(
-                    accent.copy(alpha = connectionGlow + pulse.value * 0.45f),
-                    Color(0x66081222))),
-                DesktopShape
-            )
-            .border(
-                if (focused) 4.dp else 1.dp,
-                if (focused) blue else accent.copy(alpha = if (connected) 0.75f else 0.32f),
-                DesktopShape
-            )
-            .onFocusChanged {
-                focused = it.isFocused
-                if (focused) onFocus()
-            }
-            .clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-
-        GlassPortGlyph(kind ?: TvSourceKind.TV, accent, if (connected) .45f + pulse.value else 0f, Modifier.width(64.dp).height(36.dp))
-        Spacer(Modifier.height(5.dp))
-
-        Column(Modifier.padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, fontSize = 12.sp, color = Color.White, maxLines = 1)
-            if (connected) Text("● Подключено", fontSize = 9.sp, color = Color(0xFF93F5D0))
-            if (!status.isNullOrBlank()) Text(
-                if (status == "Состояние неизвестно") "Нет данных" else status, fontSize = 9.sp,
-                color = if (connected) Color(0xFF93F5D0) else Color.LightGray,
-                maxLines = 1
-            )
-        }
     }
 }
 
@@ -443,14 +419,25 @@ private fun rememberAppArtwork(
     component: ComponentName?
 ): ImageBitmap? {
 
-    val pm = LocalContext.current.packageManager
+    val context = LocalContext.current
+    val pm = context.packageManager
     val key = component?.flattenToString() ?: "ezch-store"
 
     val artwork by produceState<ImageBitmap?>(
-        initialValue = component?.let { artCache.get(key) },
+        initialValue = artCache.get(key),
         key1 = key
     ) {
 
+        // The EZCH store logo is a 1024×1024 PNG: decode it once, off the main thread, at 128 px.
+        // painterResource() decoded the full 4 MB bitmap in composition for every card — a scroll stall.
+        if (component == null && value == null) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.ezch_brand,
+                        android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 })?.asImageBitmap()?.also { artCache.put(key, it) }
+                }.getOrNull()
+            }
+        }
         if (component != null && value == null) {
 
             value = withContext(Dispatchers.IO) {
@@ -478,6 +465,8 @@ private fun rememberAppArtwork(
                     }
 
                     drawable.draw(canvas)
+                    // Upload the texture now (background), not on the first frame the card scrolls into view.
+                    bitmap.prepareToDraw()
 
                     bitmap.asImageBitmap().also {
                         artCache.put(key, it)

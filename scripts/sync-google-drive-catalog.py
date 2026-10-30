@@ -119,7 +119,10 @@ class PublicDrive:
 
 def active_project_catalog(apps):
     if any(app["packageName"] == "com.example.ezchupdate.tvtest" for app in apps):
-        return [app for app in apps if app["packageName"] != "com.example.ezchupdate"]
+        # Keep a deliberately published legacy release so existing installations
+        # can update in place; do not revive an obsolete APK merely left in Drive.
+        return [app for app in apps if app["packageName"] != "com.example.ezchupdate" or
+                app.get("apkUrl", "").startswith("https://github.com/aidar4ik93/EZCH-Update/releases/download/")]
     return apps
 
 def sync(api, cache, output, sdk, keep_project_releases=True):

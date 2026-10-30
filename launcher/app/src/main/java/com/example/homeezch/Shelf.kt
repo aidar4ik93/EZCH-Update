@@ -1,6 +1,6 @@
 package com.example.homeezch
 
-internal data class AppShelf(val id: String, val title: String, val appKeys: List<String>)
+internal data class AppShelf(val id: String, val title: String, val appKeys: List<String>, val isFolder: Boolean = false)
 
 internal fun orderedKeys(saved: List<String>, available: List<String>): List<String> {
     val allowed = available.toSet()

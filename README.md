@@ -1,4 +1,12 @@
-# EZCH Launcher 0.26 / Update 1.6.4
+# EZCH Launcher AI 0.49.1 / Update 1.8.2
+
+Launcher: 0.49.1-EVA / versionCode 111, пакет `com.example.homeezch.usb`. Update: 1.8.2 / versionCode 32. [Результаты проверки Update и ограничения](docs/UPDATE_1_8_2_TEST_REPORT_RU.md). В Update есть непройденный автоматический тест пульта; версия публикуется как предварительная, без утверждения полной готовности.
+
+По умолчанию пакет `com.example.ezchupdate.tvtest`; `-PezchLegacyUpdate=true` собирает прежний `com.example.ezchupdate`. Для подписи второго варианта сценарий `scripts/build-release.ps1` принимает `-LegacyUpdate`. Выбирать пакет по существующей установке. Приватные ключи в исходники не входят.
+
+Модули `launcher`, `eva-core`, `eva-llm` перенесены из рабочей сборки Claude 0.49.1; включены JNI/llama.cpp и встроенная русская модель Vosk. [Описание 0.49.1](docs/RELEASE_0.49.1_RU.md). Проверки Homatics, приведённые в описании, переданы Claude и владельцем; GPT отдельно проверил хеш и штатную подпись APK. Историческое описание старых выпусков ниже сохранено для справки.
+
+## Исторический выпуск Launcher 0.26 / Update 1.6.4
 
 Выпуск 0.26 основан на восстановленных исходниках Launcher 0.25. [Изменения, проверки и ограничения 0.26](RELEASE_0.26_RU.md).
 

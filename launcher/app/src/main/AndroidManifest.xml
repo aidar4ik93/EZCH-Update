@@ -3,12 +3,16 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -22,6 +26,30 @@
 
     <!-- Доступ к списку запускаемых приложений -->
     <queries>
+        <package android:name="com.google.android.tvrecommendations" />
+        <package android:name="com.nes.leanbacklauncher.partnercustomizer" />
+        <package android:name="fusion.android.tv.demo" />
+        <package android:name="com.google.android.feedback" />
+        <package android:name="tv.anoki.acr.controller" />
+        <package android:name="com.google.android.leanbacklauncher.recommendations" />
+        <package android:name="com.cltv.fast" />
+        <package android:name="com.google.android.apps.tv.dreamx" />
+        <package android:name="com.google.android.backdrop" />
+        <!-- Apps with an Android search screen: «открой лифт, найди мстители» without the app-control service. -->
+        <intent><action android:name="android.intent.action.SEARCH" /></intent>
+        <package android:name="com.google.android.youtube.googletv" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.netflix.ninja" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.amazon.amazonvideo.livingroom" />
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+        <intent><action android:name="android.settings.SETTINGS" /></intent>
+        <intent><action android:name="android.settings.MANAGE_APPLICATIONS_SETTINGS" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.intent.action.CREATE_DOCUMENT" /><category android:name="android.intent.category.OPENABLE" /><data android:mimeType="application/json" /></intent>
+        <intent><action android:name="android.intent.action.OPEN_DOCUMENT" /><category android:name="android.intent.category.OPENABLE" /><data android:mimeType="application/json" /></intent>
         <package android:name="com.example.ezchupdate.tvtest" />
         <package android:name="com.alphainventor.filemanager" />
         <package android:name="com.android.tv.settings" />
@@ -30,6 +58,10 @@
         <package android:name="com.example.ezchupdate.qa" />
         <intent><action android:name="android.settings.HOME_SETTINGS" /></intent>
         <intent><action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" /></intent>
+        <intent><action android:name="android.settings.BLUETOOTH_SETTINGS" /></intent>
+        <intent><action android:name="android.settings.CONNECTED_DEVICE_SETTINGS" /></intent>
+        <intent><action android:name="com.android.tv.settings.CONNECTED_DEVICES" /></intent>
+        <intent><action android:name="com.google.android.intent.action.CONNECT_INPUT" /></intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
@@ -54,11 +86,49 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/ezch_launcher_icon"
         android:supportsRtl="true"
-        android:theme="@style/Theme.HomeEZCH">
+        android:theme="@style/Theme.HomeEZCH"
+        android:networkSecurityConfig="@xml/eva_network_security">
+        <service android:name=".ai.EvaAppService" android:exported="true" android:label="Ai EvA — управление приложениями" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/eva_accessibility" />
+        </service>
 
         <receiver android:name=".install.InstallResultReceiver" android:exported="false" />
+        <receiver android:name=".HomeBootReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
+        <!-- Exported: the system assistant settings open it via voice-interaction settingsActivity (PIN-guarded inside). -->
+        <activity android:name=".ai.AssistantSettingsActivity" android:exported="true" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
+        <activity android:name=".ai.SmartHomeActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
+        <!-- ASSIST / VOICE_COMMAND entry: lets EVA be chosen as the assist app on firmwares that list activities. -->
+        <activity android:name=".ai.VoiceActivity" android:exported="true" android:theme="@style/Theme.EzchVoicePanel"
+            android:excludeFromRecents="true" android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <action android:name="android.intent.action.SEARCH_LONG_PRESS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ai.EvaOverlayActivity" android:exported="false" android:theme="@style/Theme.EzchEvaOverlay"
+            android:taskAffinity="com.example.homeezch.eva" android:launchMode="singleTask" android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation" />
+        <service android:name=".ai.EzchVoiceInteractionService" android:exported="true" android:label="EVA"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/ezch_voice_interaction" />
+        </service>
+        <service android:name=".ai.EzchVoiceSessionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service android:name=".ai.EzchRecognitionService" android:exported="true" android:permission="android.permission.BIND_SPEECH_RECOGNITION">
+            <intent-filter><action android:name="android.speech.RecognitionService" /></intent-filter>
+        </service>
+        <service android:name=".ai.EzchMediaListener" android:exported="true" android:label="EVA · управление плеером"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <service android:name=".WeeklyCleanupService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
         <activity android:name=".HomeSetupActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".RemoteSetupActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".UpdaterActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".DocumentBrowserActivity" android:exported="false" android:screenOrientation="landscape" />
 
@@ -102,6 +172,8 @@
 
         </activity>
 
+        <service android:name=".ai.OfflineSpeechService" android:exported="false" android:process=":eva_speech" android:stopWithTask="true" />
+        <activity android:name=".DeviceOptimizationActivity" android:exported="false" android:label="Устройство и оптимизация" />
     </application>
 
 </manifest>

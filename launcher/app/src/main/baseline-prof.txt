@@ -1,0 +1,4 @@
+HSPLcom/example/homeezch/**->**(**)**
+HSPLcom/example/homeezch/ai/**->**(**)**
+HSPLcom/example/homeezch/eva/**->**(**)**
+Lcom/example/homeezch/**;

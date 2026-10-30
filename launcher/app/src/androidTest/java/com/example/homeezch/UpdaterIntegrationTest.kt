@@ -26,7 +26,7 @@ class UpdaterIntegrationTest {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val device=UiDevice.getInstance(instrumentation)
         val updaterPackage = instrumentation.targetContext.packageName
-        ui.onNodeWithText("EZCH Store").performClick()
+        ui.onNodeWithText("Магазин EZCH").performClick()
         val deadline=SystemClock.elapsedRealtime()+30_000
         while(device.currentPackageName != updaterPackage && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(500)
         assertEquals(updaterPackage,device.currentPackageName)

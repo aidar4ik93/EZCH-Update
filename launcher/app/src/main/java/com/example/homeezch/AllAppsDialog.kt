@@ -19,7 +19,8 @@ import androidx.compose.ui.window.DialogProperties
 @Composable
 internal fun AllAppsDialog(
     apps: List<LaunchApp>, hidden: List<String>, saving: Boolean,
-    onDismiss: () -> Unit, onLaunch: (LaunchApp) -> Unit, onToggle: (LaunchApp) -> Unit
+    onDismiss: () -> Unit, onLaunch: (LaunchApp) -> Unit, onToggle: (LaunchApp) -> Unit,
+    removed: List<String> = emptyList(), onPlace: ((LaunchApp) -> Unit)? = null, title: String = "Все приложения"
 ) {
     val first = remember { FocusRequester() }
     var query by remember { mutableStateOf("") }
@@ -29,7 +30,7 @@ internal fun AllAppsDialog(
             color = androidx.compose.ui.graphics.Color(0xF0081222)) {
             Column(Modifier.padding(24.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Все приложения", fontSize = 24.sp, modifier = Modifier.weight(1f))
+                    Text(title, fontSize = 24.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("Закрыть") }
                 }
                 Text("OK — открыть · Скрытые приложения тоже доступны здесь", color = Muted, fontSize = 12.sp)
@@ -48,8 +49,13 @@ internal fun AllAppsDialog(
                                 modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
                                 onFocus = {}, onClick = { onLaunch(app) })
                             TextButton(enabled = !saving, onClick = { onToggle(app) }) {
-                                Text(if (key in hidden) "Вернуть на рабочий стол" else "Скрыть с рабочего стола", fontSize = 11.sp)
+                                Text(when { key in removed -> "Добавить на рабочий стол"
+                                    key in hidden -> "Вернуть на рабочий стол"
+                                    else -> "Скрыть с рабочего стола" }, fontSize = 11.sp)
                             }
+                            onPlace?.let { place -> TextButton(enabled = !saving, onClick = { place(app) }) {
+                                Text("Выбрать строку", fontSize = 11.sp)
+                            } }
                         }
                     }
                 }

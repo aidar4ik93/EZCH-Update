@@ -44,4 +44,10 @@ class PublicDriveTests(unittest.TestCase):
             ["com.example.ezchupdate.tvtest", "com.example.homeezch.usb", "example.player"])
         self.assertEqual(drive.active_project_catalog(apps[:1]), apps[:1])
 
+    def test_explicit_legacy_release_remains_available_beside_tv_edition(self):
+        legacy = {"packageName": "com.example.ezchupdate",
+                  "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.8.2/EZCH_Update_1.8.2_Legacy.apk"}
+        tv = {"packageName": "com.example.ezchupdate.tvtest"}
+        self.assertEqual(drive.active_project_catalog([legacy, tv]), [legacy, tv])
+
 if __name__ == "__main__": unittest.main()

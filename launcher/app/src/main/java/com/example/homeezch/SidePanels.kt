@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 
 internal enum class PanelEdge { LEFT, RIGHT }
 
@@ -48,6 +49,28 @@ internal fun SidePanel(
 ) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
     val editingBack by rememberUpdatedState(onBackWhileEditing)
+    var returnFocus by remember { mutableStateOf<FocusRequester?>(null) }
+    var leftActivity by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) leftActivity = true
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && leftActivity) {
+                leftActivity = false
+                val target = returnFocus
+                returnFocus = null
+                if (target != null) scope.launch {
+                    inputMode.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
+                    withFrameNanos { }; withFrameNanos { }
+                    runCatching { target.requestFocus() }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     fun close() { visible.targetState = false }
     // The dialog callback must see an edit started after the panel was opened.
     fun back() { val cancelEdit = editingBack; if (cancelEdit != null) cancelEdit() else close() }
@@ -56,7 +79,7 @@ internal fun SidePanel(
     }
     Dialog(onDismissRequest = ::back,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        LaunchedEffect(Unit) { withFrameNanos { }; firstFocus.requestFocus() }
+        LaunchedEffect(Unit) { withFrameNanos { }; runCatching { firstFocus.requestFocus() } }
         BoxWithConstraints(Modifier.fillMaxSize().testTag("$tag-overlay")) {
             val panelWidth = (maxWidth * .46f).coerceIn(300.dp, 420.dp).coerceAtMost(maxWidth)
             Box(Modifier.fillMaxSize().background(Color(0x88000611))
@@ -70,7 +93,10 @@ internal fun SidePanel(
                     else RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
                 Surface(Modifier.width(panelWidth).fillMaxHeight().testTag(tag),
                     shape = shape, color = Color(0xF5102035), shadowElevation = 16.dp) {
-                    Column(Modifier.fillMaxSize().focusGroup().padding(horizontal = 22.dp, vertical = 16.dp)) {
+                    Column(Modifier.fillMaxSize().focusGroup().padding(
+                        start = if (edge == PanelEdge.LEFT) (maxWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
+                        end = if (edge == PanelEdge.RIGHT) (maxWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
+                        top = 16.dp, bottom = 16.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f))
@@ -78,7 +104,7 @@ internal fun SidePanel(
                                 Text("Закрыть", color = Ice, fontSize = 12.sp)
                             }
                         }
-                        content()
+                        CompositionLocalProvider(LocalSettingsReturnFocus provides { returnFocus = it }) { content() }
                         Text("↑ ↓ выбор  ·  OK открыть  ·  Back закрыть", color = Muted, fontSize = 10.sp,
                             modifier = Modifier.padding(top = 10.dp))
                     }
@@ -110,19 +136,3 @@ internal fun PanelLaunchButton(tv: Boolean, modifier: Modifier = Modifier, onCli
     }
 }
 
-@Composable
-internal fun SourcePanelItem(source: TvSourceEntry, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(14.dp)
-    Row(modifier.fillMaxWidth().padding(vertical = 5.dp).testTag("source-${source.id}")
-        .clip(shape).background(if (focused) Color(0xFF234464) else Color(0xB0192B43), shape)
-        .border(if (focused) 3.dp else 1.dp, if (focused) Ice else Color(0xFF354C62), shape)
-        .onFocusChanged { focused = it.isFocused }.clickable(onClick = onClick).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        PortIcon(source.kind, color = if (source.connected) Ice else Muted)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(source.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(source.detail ?: source.hint, color = Muted, fontSize = 11.sp)
-        }
-    }
-}

@@ -18,7 +18,10 @@ data class RemoteApp(
     val apkPath: String,
     val sha256: String? = null,
     val sizeBytes: Long? = null,
-    val signerSha256: String? = null
+    val signerSha256: String? = null,
+    val iconUrl: String? = null,
+    val iconSha256: String? = null,
+    val installable: Boolean = true
 )
 
 data class InstalledApp(
@@ -53,6 +56,8 @@ class CatalogRepository(
                 }
             }
             offline = false
+            context?.getSharedPreferences("premium_settings", Context.MODE_PRIVATE)?.edit()
+                ?.putLong("last_sync", System.currentTimeMillis())?.apply()
             apps
         } catch (error: Exception) {
             offline = true
@@ -97,7 +102,9 @@ class CatalogRepository(
                 apkPath = item.getString("apkPath"),
                 sha256 = item.optString("sha256").takeIf { it.isNotBlank() }?.lowercase(),
                 sizeBytes = if (item.has("sizeBytes")) item.getLong("sizeBytes") else null,
-                signerSha256 = item.optString("signerSha256").takeIf { it.isNotBlank() }?.lowercase()
+                signerSha256 = item.optString("signerSha256").takeIf { it.isNotBlank() }?.lowercase(),
+                iconUrl = item.optString("iconUrl").takeIf { it.isNotBlank() },
+                iconSha256 = item.optString("iconSha256").takeIf { it.isNotBlank() }?.lowercase()
             )
         }
         require(result.map { it.packageName }.distinct().size == result.size) {
@@ -119,6 +126,11 @@ class CatalogRepository(
             require(app.sha256 == null || app.sha256.matches(Regex("[a-f0-9]{64}"))) { "Некорректный SHA-256: ${app.name}" }
             require(app.signerSha256 == null || app.signerSha256.matches(Regex("[a-f0-9]{64}"))) { "Некорректный сертификат: ${app.name}" }
             require(app.sizeBytes == null || app.sizeBytes > 0) { "Некорректный размер APK: ${app.name}" }
+            require((app.iconUrl == null && app.iconSha256 == null) ||
+                (app.iconSha256?.matches(Regex("[a-f0-9]{64}")) == true &&
+                    app.iconUrl == "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/${app.sha256}.png")) {
+                "Некорректный источник иконки: ${app.name}"
+            }
         }
         return result.filterNot(QuarantinedApks::isQuarantined).also { allowed ->
             require(allowed.all { it.sha256 != null && it.sizeBytes != null && it.signerSha256 != null }) {
@@ -134,7 +146,8 @@ class CatalogRepository(
             check(connection.responseCode in 200..299) {
                 "Не удалось загрузить каталог: HTTP ${connection.responseCode}"
             }
-            val source = connection.inputStream.bufferedReader().use { it.readText() }
+            val bytes = connection.inputStream.use { it.readBytesLimited(4 * 1024 * 1024) }
+            val source = String(bytes, Charsets.UTF_8)
             val document = JSONObject(source)
             if (document.optString("encoding") == "base64" && document.has("content")) {
                 String(android.util.Base64.decode(document.getString("content"), android.util.Base64.DEFAULT), Charsets.UTF_8)
@@ -143,6 +156,18 @@ class CatalogRepository(
             connection.disconnect()
         }
     }
+}
+
+private fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
+    val output = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(8192)
+    while (true) {
+        val count = read(buffer)
+        if (count < 0) break
+        require(output.size() + count <= limit) { "Каталог превышает допустимый размер" }
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
 }
 
 fun PackageInfo.versionCodeCompat(): Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

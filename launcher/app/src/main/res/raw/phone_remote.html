@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#050b16">
+<title>EZCH · Пульт</title>
+<style>
+  :root { --bg:#050b16; --card:#0d1a2e; --line:#1f3554; --text:#eef4ff; --muted:#8aa0bd; --accent:#3d8bff; --accent2:#9b6bff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:radial-gradient(120% 60% at 50% 0%, #10294d 0%, var(--bg) 60%); color:var(--text);
+         font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; min-height:100vh; padding:16px; }
+  h1 { font-size:20px; margin:4px 0 2px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:14px; }
+  .orb { width:28px; height:28px; border-radius:50%; display:inline-block; vertical-align:-6px; margin-right:8px;
+         background:conic-gradient(from 0deg,#00dfff,#aa78ff,#00dfff); box-shadow:0 0 14px #3d8bff99; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:14px; margin-bottom:12px; }
+  textarea, input { width:100%; background:#081223; color:var(--text); border:1px solid var(--line); border-radius:12px;
+         padding:12px; font:inherit; resize:none; }
+  textarea { min-height:84px; }
+  .hint { color:var(--muted); font-size:12px; margin:6px 2px 10px; }
+  .row { display:flex; gap:8px; }
+  button { flex:1; border:0; border-radius:12px; padding:13px 10px; font:600 15px system-ui,sans-serif; color:var(--text);
+         background:#16294a; touch-action:manipulation; }
+  button:active { transform:scale(.97); filter:brightness(1.25); }
+  .primary { background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+  .chips { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,64px); gap:8px; max-width:260px; margin:4px auto 0; }
+  .pad button { font-size:22px; }
+  .pad .ok { border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); font-size:17px; }
+  #toast { position:fixed; left:16px; right:16px; bottom:16px; background:#0e2340; border:1px solid var(--line); border-radius:12px;
+         padding:12px; text-align:center; opacity:0; transition:opacity .25s; pointer-events:none; }
+  #toast.show { opacity:1; }
+</style>
+</head>
+<body>
+  <h1><span class="orb"></span>Ева на телевизоре</h1>
+  <div class="sub">Пульт EZCH · работает только в вашей домашней сети</div>
+
+  <div class="card">
+    <textarea id="text" placeholder="Скажите или напишите: «найди Интерстеллар в Кинопоиске», «громкость 20», «который час»"></textarea>
+    <div class="hint">🎤 Нажмите микрофон на клавиатуре телефона и говорите — это точнее, чем микрофон пульта.</div>
+    <div class="row">
+      <button class="primary" onclick="send('say')">Сказать Еве</button>
+      <button onclick="send('type')">Напечатать на ТВ</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chips">
+      <button onclick="key('back')">↩ Назад</button>
+      <button onclick="key('home')">⌂ Домой</button>
+      <button onclick="key('playpause')">⏯ Пауза</button>
+      <button onclick="key('voldown')">🔉 Тише</button>
+      <button onclick="key('mute')">🔇 Звук</button>
+      <button onclick="key('volup')">🔊 Громче</button>
+    </div>
+    <div class="pad">
+      <span></span><button onclick="key('up')">▲</button><span></span>
+      <button onclick="key('left')">◀</button><button class="ok" onclick="key('ok')">OK</button><button onclick="key('right')">▶</button>
+      <span></span><button onclick="key('down')">▼</button><span></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <input id="link" type="url" inputmode="url" placeholder="Ссылка: https://youtu.be/…">
+    <div class="row" style="margin-top:8px"><button onclick="openLink()">Открыть на ТВ</button></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><button onclick="location.href='/diag?k=' + encodeURIComponent(KEY)">Диагностика ТВ (текст)</button></div>
+  </div>
+
+  <div id="toast"></div>
+<script>
+  const KEY = "__KEY__";
+  const toast = (t) => { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(window._t); window._t = setTimeout(() => e.classList.remove('show'), 2200); };
+  async function post(name, body) {
+    try {
+      const r = await fetch('/api/' + name + '?k=' + encodeURIComponent(KEY), { method: 'POST', body: body || '' });
+      const t = await r.text(); toast(r.ok ? (t || 'Готово') : ('Ошибка: ' + t));
+      if (navigator.vibrate) navigator.vibrate(12);
+      return r.ok;
+    } catch (e) { toast('Телевизор не отвечает. Телефон в той же Wi-Fi сети?'); return false; }
+  }
+  async function send(kind) {
+    const el = document.getElementById('text'); const v = el.value.trim();
+    if (!v) { toast('Сначала скажите или напишите текст'); el.focus(); return; }
+    if (await post(kind, v)) el.value = '';
+  }
+  function key(name) { post('key', name); }
+  async function openLink() { const el = document.getElementById('link'); if (await post('link', el.value.trim())) el.value = ''; }
+  document.getElementById('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send('say'); } });
+  // A link shared into the page address (…&url=…) opens on the TV right away.
+  const shared = new URLSearchParams(location.search).get('url'); if (shared) post('link', shared);
+</script>
+</body>
+</html>

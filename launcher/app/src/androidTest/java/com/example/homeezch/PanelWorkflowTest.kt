@@ -25,7 +25,7 @@ class PanelWorkflowTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     @Before fun desktopReady() {
-        ui.waitUntil(15000) { ui.onAllNodesWithText("EZCH Store").fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil(15000) { ui.onAllNodesWithText("Магазин EZCH").fetchSemanticsNodes().isNotEmpty() }
     }
     private fun open(tv: Boolean) {
         val trigger = ui.onNodeWithTag(if (tv) "sources-launcher" else "settings-launcher")
@@ -61,7 +61,14 @@ class PanelWorkflowTest {
             val item = ui.onNodeWithTag(tag)
             item.performScrollTo().performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
             item.performKeyInput { pressKey(Key.DirectionCenter) }
-            ui.waitUntil(10000) { device.currentPackageName in setOf("com.android.settings", "com.android.tv.settings", "com.google.android.tv.settings") }
+            // Bluetooth opens the existing nearby-devices permission first on a fresh install.
+            val allow = device.wait(androidx.test.uiautomator.Until.findObject(
+                androidx.test.uiautomator.By.res(java.util.regex.Pattern.compile(".*:id/permission_allow_button"))), 1500)
+            allow?.click()
+            val settingsPackages = listOf(android.provider.Settings.ACTION_SETTINGS,
+                android.provider.Settings.ACTION_BLUETOOTH_SETTINGS, "com.android.tv.settings.CONNECTED_DEVICES")
+                .mapNotNull { SettingsRouter.supportedIntent(ui.activity, Intent(it))?.component?.packageName }.toSet()
+            ui.waitUntil(10000) { device.currentPackageName in settingsPackages }
             device.pressBack()
             ui.waitUntil(10000) { device.currentPackageName == ui.activity.packageName }
             ui.waitForIdle()
@@ -70,6 +77,23 @@ class PanelWorkflowTest {
             device.pressBack(); ui.waitForIdle()
             ui.onNodeWithTag("settings-launcher").assertIsFocused()
         }
+    }
+    @Test fun topBluetoothButtonOpensAVisibleSettingsScreenAndReturns() {
+        val trigger = ui.onNodeWithTag("settings-launcher")
+        trigger.performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
+        trigger.performKeyInput { pressKey(Key.DirectionCenter) }
+        ui.waitUntil(5000) { ui.onAllNodesWithTag("quick-Bluetooth").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("quick-Bluetooth").performSemanticsAction(SemanticsActions.RequestFocus) { assertTrue(it()) }
+        ui.onNodeWithTag("quick-Bluetooth").performKeyInput { pressKey(Key.DirectionCenter) }
+        ui.waitUntil(10000) { device.currentPackageName != ui.activity.packageName }
+        val hierarchy = java.io.ByteArrayOutputStream()
+        device.dumpWindowHierarchy(hierarchy)
+        assertTrue("Settings must expose actual UI", hierarchy.size() > 1000)
+        assertFalse(hierarchy.toString("UTF-8").contains("EmptyStubActivity"))
+        device.pressBack()
+        ui.waitUntil(10000) { device.currentPackageName == ui.activity.packageName }
+        ui.onNodeWithTag("quick-Bluetooth").assertIsFocused()
+        device.pressBack()
     }
     @Test fun homeIntentClosesEitherPanelAndReturnsToDesktopStart() {
         for (tv in listOf(false, true)) {
@@ -81,7 +105,7 @@ class PanelWorkflowTest {
             ui.waitForIdle()
             ui.onNodeWithTag("sources-panel").assertDoesNotExist()
             ui.onNodeWithTag("settings-panel").assertDoesNotExist()
-            ui.onNodeWithText("EZCH Store").assertIsFocused()
+            ui.onNodeWithText("Магазин EZCH").assertIsFocused()
         }
     }
     @Test fun usbFileManagerActionOpensExistingActivityAndBackReturnsToPanel() {
@@ -100,8 +124,16 @@ class PanelWorkflowTest {
 
 internal fun prepareLauncherTest() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
+    // A real TV has a different installed-app inventory. Stable test focus must
+    // not depend on alphabetical labels or modify the owner's release workspace.
+    check(context.packageName.endsWith(".debug"))
+    WorkspacePrefs.save(context, Workspace(listOf(AppShelf("main", "Приложения",
+        listOf("ezch-store", context.packageName)))))
     context.getSharedPreferences("home_setup", Context.MODE_PRIVATE).edit()
         .putBoolean("setup_reviewed_v24", true).commit()
     context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE).edit()
         .putBoolean("weather_auto", false).putBoolean("weather_prompt_v09", true).commit()
+    // Every HOME test starts with EVA off; tests that need her switch her on after this call. A test that left
+    // EVA on showed the microphone hint over the desktop and later taps landed on it (R16 trace).
+    com.example.homeezch.ai.AiPreferences.store(context).edit().putBoolean("enabled", false).commit()
 }

@@ -15,14 +15,18 @@ import kotlinx.coroutines.delay
 /** Serial reveal is cancellable: rapid toggles converge on the latest target. */
 @Composable
 internal fun SourceStrip(expanded: Boolean, sources: List<TvSourceEntry>, state: LazyListState,
-    modifier: Modifier = Modifier, card: @Composable (TvSourceEntry) -> Unit) {
+    modifier: Modifier = Modifier, onRevealed: (List<String>) -> Unit = {}, card: @Composable (TvSourceEntry) -> Unit) {
+    val heavy = LocalRenderProfile.current.heavyEffects
     var count by remember { mutableIntStateOf(0) }
+    val ids = remember(sources) { sources.map { it.id } }
+    val notify by rememberUpdatedState(onRevealed)
+    LaunchedEffect(count, ids) { notify(ids.take(count)) }
     LaunchedEffect(expanded, sources.size) {
         count = count.coerceAtMost(sources.size)
         val target = if (expanded) sources.size else 0
         while (count != target) {
             if (count < target) count++ else count--
-            delay(90)
+            delay(if (heavy) 90 else 80)
         }
     }
     LazyRow(state = state, modifier = modifier.testTag("sources-list"),
@@ -30,8 +34,8 @@ internal fun SourceStrip(expanded: Boolean, sources: List<TvSourceEntry>, state:
         contentPadding = PaddingValues(vertical = 14.dp)) {
         itemsIndexed(sources, key = { _, source -> source.id }) { index, source ->
             AnimatedVisibility(visible = index < count,
-                enter = fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 10 },
-                exit = fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { it / 10 }) { card(source) }
+                enter = fadeIn(tween(if (heavy) 220 else 100)) + slideInHorizontally(tween(if (heavy) 220 else 100)) { it / 10 },
+                exit = fadeOut(tween(if (heavy) 180 else 100)) + slideOutHorizontally(tween(if (heavy) 180 else 100)) { it / 10 }) { card(source) }
         }
     }
 }

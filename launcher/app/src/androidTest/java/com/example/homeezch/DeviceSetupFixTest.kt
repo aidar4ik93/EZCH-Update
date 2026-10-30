@@ -45,6 +45,7 @@ class DeviceSetupFixTest {
             Intent("com.google.android.intent.action.CONNECT_INPUT"),
             Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
             Intent("android.settings.CONNECTED_DEVICE_SETTINGS"),
+            Intent("com.android.tv.settings.CONNECTED_DEVICES"),
             Intent("android.bluetooth.devicepicker.action.LAUNCH"),
             Intent(Settings.ACTION_SETTINGS)
         ).mapNotNull { context.packageManager.resolveActivity(it, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName }

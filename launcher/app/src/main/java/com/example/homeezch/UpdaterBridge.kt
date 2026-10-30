@@ -7,7 +7,7 @@ import android.widget.Toast
 
 internal fun updaterPackages(ownPackage: String): List<String> =
     if (ownPackage.endsWith(".qa")) listOf("com.example.ezchupdate.qa", "com.example.ezchupdate")
-    else listOf("com.example.ezchupdate")
+    else listOf("com.example.ezchupdate.tvtest", "com.example.ezchupdate")
 
 internal fun openUpdater(context: Context, selectedPackage: String? = null): Boolean {
     val embedded = Intent(context, UpdaterActivity::class.java)

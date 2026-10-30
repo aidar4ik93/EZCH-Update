@@ -19,22 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-internal fun QuickControls(
-    premium: Boolean,
-    onPremiumChange: (Boolean) -> Unit,
-    onWifi: () -> Unit,
-    onBluetooth: () -> Unit,
-    onTrimCache: () -> Unit
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ControlChip("Wi-Fi", onWifi)
-        ControlChip("Bluetooth", onBluetooth)
-        ControlChip(if (premium) "Premium ✦" else "Lite ⚡") { onPremiumChange(!premium) }
-        ControlChip("Очистить кеш EZCH", onTrimCache)
-    }
-}
-
-@Composable
 internal fun ControlChip(title: String, action: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) 1.08f else 1f, tween(170), label = "controlFocus")

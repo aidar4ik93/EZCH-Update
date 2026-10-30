@@ -8,17 +8,19 @@ internal object WorkspacePrefs {
     private fun JSONArray.strings() = (0 until length()).map { getString(it) }
     fun load(context: Context): Workspace {
         val prefs = context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
-        val json = prefs.getString("workspace_v1", null)
+        val json = prefs.getString(Profiles.workspaceKey(context), null)
         if (json != null) runCatching {
             val obj = JSONObject(json); val rows = obj.getJSONArray("rows")
             val parsed = (0 until rows.length()).map { i ->
                 val row = rows.getJSONObject(i)
-                AppShelf(row.getString("id"), row.getString("title"), row.getJSONArray("apps").strings())
+                AppShelf(row.getString("id"), row.getString("title"), row.getJSONArray("apps").strings(), row.optBoolean("folder", false))
             }
             require(parsed.isNotEmpty())
             return Workspace(parsed, obj.getJSONArray("hiddenApps").strings(),
-                obj.getJSONArray("sourceOrder").strings(), obj.getJSONArray("hiddenSources").strings())
+                obj.getJSONArray("sourceOrder").strings(), obj.getJSONArray("hiddenSources").strings(),
+                obj.optJSONArray("removedApps")?.strings().orEmpty())
         }
+        if (Profiles.active(context) != "owner") return Workspace(listOf(AppShelf("main", "Приложения", emptyList())))
         // Migrate component IDs to package IDs; activity renames cannot reset the order.
         val legacy = context.getSharedPreferences("launcher_preferences", Context.MODE_PRIVATE)
         if (legacy.contains("app_order") || legacy.contains("home_rows") || legacy.contains("hidden_packages")) {
@@ -34,12 +36,13 @@ internal object WorkspacePrefs {
     fun save(context: Context, workspace: Workspace): Boolean {
         val rows = JSONArray()
         workspace.rows.forEach { rows.put(JSONObject().put("id", it.id).put("title", it.title)
-            .put("apps", JSONArray(it.appKeys))) }
+            .put("apps", JSONArray(it.appKeys)).put("folder", it.isFolder)) }
         val data = JSONObject().put("rows", rows).put("hiddenApps", JSONArray(workspace.hiddenApps))
             .put("sourceOrder", JSONArray(workspace.sourceOrder))
             .put("hiddenSources", JSONArray(workspace.hiddenSources))
+            .put("removedApps", JSONArray(workspace.removedApps))
         return context.getSharedPreferences("ezch_launcher_prefs", Context.MODE_PRIVATE)
-            .edit().putString("workspace_v1", data.toString()).commit()
+            .edit().putString(Profiles.workspaceKey(context), data.toString()).commit()
     }
 }
 

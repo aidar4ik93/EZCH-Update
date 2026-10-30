@@ -38,9 +38,12 @@ internal object HomeRole {
             if (roles?.isRoleAvailable(RoleManager.ROLE_HOME) == true && !roles.isRoleHeld(RoleManager.ROLE_HOME))
                 return roles.createRequestRoleIntent(RoleManager.ROLE_HOME)
         }
-        return listOf(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-            .firstOrNull { context.packageManager.resolveActivity(it, 0) != null }
+        return settingsIntent(context)
     }
+
+    fun settingsIntent(context: Context): Intent? =
+        listOf(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+            .firstNotNullOfOrNull { SettingsRouter.supportedIntent(context, it) }
 
     fun request(context: Context): Boolean = SettingsRouter.open(context,
         listOf(Intent(context, HomeSetupActivity::class.java)))

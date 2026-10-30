@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -25,16 +27,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Layered translucent strokes approximate diffuse light without bitmap blur or extra textures. */
-internal fun Modifier.focusHalo(intensity: Float, accent: Color = Ice): Modifier = focusHalo({ intensity }, accent)
+@Composable internal fun Modifier.focusHalo(intensity: Float, accent: Color = Ice): Modifier = focusHalo({ intensity }, accent)
 
 /** Read animated intensity in drawing, avoiding composition on every animation frame. */
-internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifier = drawBehind {
+@Composable internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifier {
+    // Weak TVs get a 4-ring halo instead of none: the soft glow is part of the requested focus look.
+    val rings = if (LocalRenderProfile.current.heavyEffects) 12 else 4
+    return drawBehind {
     val intensity = level()
-    if (intensity > .01f) for (ring in 12 downTo 1) {
-        val spread = ring.dp.toPx()
-        drawRoundRect(accent.copy(alpha = intensity * .035f * (13 - ring) / 12f),
+    if (intensity > .01f) for (ring in rings downTo 1) {
+        val spread = (ring * 12f / rings).dp.toPx()
+        drawRoundRect(accent.copy(alpha = intensity * .035f * (rings + 1 - ring) / rings * (12f / rings).coerceAtMost(2.2f)),
             Offset(-spread, -spread), Size(size.width + 2 * spread, size.height + 2 * spread),
             CornerRadius(18.dp.toPx() + spread), style = Stroke(2.dp.toPx()))
+    }
     }
 }
 
@@ -43,20 +49,47 @@ internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifi
         modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
 }
 
+internal val LocalSettingsReturnFocus = staticCompositionLocalOf<(FocusRequester) -> Unit> { {} }
+
+/** Each settings group has its own colour, so the list reads at a glance instead of one uniform blue. */
+internal fun settingsAccent(icon: String): Color = when (icon) {
+    "Пульт" -> Color(0xFFFF9F43)
+    "Голос" -> Color(0xFFB57BFF)
+    "Настройки" -> Color(0xFF2EE6C5)
+    "Домой" -> Color(0xFF5AA9FF)
+    "Экран" -> Color(0xFFFF6FAE)
+    "Папка" -> Color(0xFFFFC94D)
+    "Строки" -> Color(0xFF7BE07B)
+    "Обои" -> Color(0xFF9F8CFF)
+    "Bluetooth" -> Color(0xFF4D8BFF)
+    "Сеть" -> Color(0xFF38D1FF)
+    "Звук" -> Color(0xFFFF7A59)
+    "Копия" -> Color(0xFF8BD3DD)
+    "Профили" -> Color(0xFFFFB86B)
+    else -> Ice
+}
+
 @Composable internal fun SettingsItem(icon: String, title: String, description: String,
-    state: String? = null, accent: Color = Ice, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    state: String? = null, accent: Color = settingsAccent(icon), enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
+    val returnRequester = remember { FocusRequester() }
+    val rememberReturnFocus = LocalSettingsReturnFocus.current
     val glow by animateFloatAsState(if (focused) 1f else 0f, tween(200), label = "settingFocus")
     val shape = RoundedCornerShape(14.dp)
     Row(modifier.fillMaxWidth().padding(vertical = 5.dp)
         .graphicsLayer { scaleX = 1f + .018f * glow; scaleY = 1f + .018f * glow; alpha = if (enabled) 1f else .45f }
         .focusHalo(glow, accent).clip(shape).background(Color(0xB0192B43))
         .border(1.dp, accent.copy(alpha = .18f + .55f * glow), shape)
-        .onFocusChanged { focused = it.isFocused }.clickable(enabled = enabled, onClick = onClick)
+        .focusRequester(returnRequester)
+        .onFocusChanged { focused = it.isFocused }.clickable(enabled = enabled, onClick = {
+            rememberReturnFocus(returnRequester); onClick()
+        })
         .padding(12.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(40.dp).background(accent.copy(alpha = .10f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-            GlassIcon(icon, color = accent)
+        Box(Modifier.size(40.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(
+                listOf(accent.copy(alpha = .42f), accent.copy(alpha = .14f))), RoundedCornerShape(12.dp))
+            .border(1.dp, accent.copy(alpha = .55f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            GlassIcon(icon, color = Color.White)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

@@ -113,6 +113,8 @@ class InstallerDeviceTest {
         val installer = AppInstaller()
         val wrongPackage = installer.installFile(context, fixtureApp.copy(packageName = "com.example.wrong"), fixture)
         val wrongVersion = installer.installFile(context, fixtureApp.copy(versionCode = 2), fixture)
+        val wrongVersionName = installer.installFile(context, fixtureApp.copy(versionName = "99.0"), fixture)
+        assertTrue(wrongVersionName.exceptionOrNull()?.message.orEmpty().contains("Название версии APK не совпадает"))
         assertTrue(wrongPackage.exceptionOrNull()?.message.orEmpty().contains("Имя пакета APK не совпадает"))
         assertTrue(wrongVersion.exceptionOrNull()?.message.orEmpty().contains("Версия APK не совпадает"))
         assertTrue(context.packageManager.packageInstaller.mySessions.isEmpty())
@@ -216,7 +218,7 @@ class InstallerDeviceTest {
             override fun getCacheDir(): File = error("Quarantine must be checked before downloading an APK")
         }
         restored.remaining.forEach { app ->
-            val expectedMessage = "Этот файл временно исключён из каталога после проверки безопасности: ${app.name}"
+            val expectedMessage = "Этот файл на карантине до завершения проверки: ${app.name}"
             assertEquals(expectedMessage, AppInstaller().install(guardedContext, app).exceptionOrNull()?.message)
             assertEquals(expectedMessage, AppInstaller().installFile(guardedContext, app, fixture).exceptionOrNull()?.message)
         }

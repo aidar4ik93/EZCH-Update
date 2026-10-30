@@ -24,7 +24,8 @@ import androidx.compose.ui.window.*
 internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press: CenterPress,
     onDismiss: () -> Unit, onMove: () -> Unit, onHide: () -> Unit,
     onAutoStart: (() -> Unit)? = null, autoStart: Boolean = false, onInfo: (() -> Unit)? = null,
-    onFavorite: (() -> Unit)? = null) {
+    onFavorite: (() -> Unit)? = null, onRemove: (() -> Unit)? = null,
+    moveLabel: String? = null, hideLabel: String = "Скрыть с рабочего стола", infoLabel: String = "Информация о приложении") {
     var waitingForRelease by remember { mutableStateOf(press.isPressed) }
     val first = remember { FocusRequester() }
     val gap = with(LocalDensity.current) { 10.dp.roundToPx() }
@@ -61,13 +62,14 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
             .border(1.dp, Color(0x668DC6FF), shape).padding(12.dp)) {
             Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1,
                 modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))
-            CardMenuAction(if (source) "Переместить разъём" else "Переместить приложение", "↔",
+            CardMenuAction(moveLabel ?: if (source) "Переместить разъём" else "Переместить приложение", "↔",
                 Modifier.focusRequester(first), onMove)
             Spacer(Modifier.height(5.dp))
-            CardMenuAction("Скрыть с рабочего стола", "⊖", Modifier, onHide)
+            CardMenuAction(hideLabel, "⊖", Modifier, onHide)
             onAutoStart?.let { CardMenuAction(if (autoStart) "Отключить автозапуск ТВ" else "Запускать ТВ при включении", "▶", Modifier, it) }
-            onInfo?.let { CardMenuAction("Информация о приложении", "ⓘ", Modifier, it) }
+            onInfo?.let { CardMenuAction(infoLabel, "ⓘ", Modifier, it) }
             onFavorite?.let { CardMenuAction("Добавить в избранное", "☆", Modifier, it) }
+            onRemove?.let { CardMenuAction("Удалить с рабочего стола", "−", Modifier, it) }
         }
         LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }
     }

@@ -34,6 +34,14 @@ internal object MetWeather {
         } ?: "unknown"
         return WeatherReading(temperature.roundToInt(), symbol, now)
     }
+    internal fun decodeResponse(response: MetResponse, saved: JSONObject?, now: Long): Pair<WeatherReading, JSONObject> {
+        val forecast = when (response.status) {
+            200, 203 -> JSONObject(response.body)
+            304 -> checkNotNull(saved?.optJSONObject("forecast")) { "304 without reusable hourly forecast" }
+            else -> error("Unexpected weather response")
+        }
+        return parse(forecast, now) to forecast
+    }
     private fun fetch(url: String, modified: String?): MetResponse {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
@@ -75,10 +83,11 @@ internal object MetWeather {
         if (now < retryAt) return@withContext WeatherResult(cached, if (cached != null) "Устаревшие данные · повтор позже" else "Сервис недоступен · повтор позже")
         try {
             val url = String.format(Locale.US, "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=%.4f&lon=%.4f", point.latitude, point.longitude)
-            val response = fetcher(url, saved?.optString("modified")?.takeIf(String::isNotBlank))
-            val reading = when (response.status) {
-                200, 203 -> parse(JSONObject(response.body), now)
-                304 -> cached?.copy(fetchedAt = now) ?: error("Server returned 304 without cached forecast")
+            // Old caches contain only a single temperature: get the full forecast once before conditional requests.
+            val modified = if (saved?.optJSONObject("forecast") != null) saved.optString("modified").takeIf(String::isNotBlank) else null
+            val response = fetcher(url, modified)
+            val (reading, forecast) = when (response.status) {
+                200, 203, 304 -> decodeResponse(response, saved, now)
                 else -> {
                     val next = saved ?: JSONObject()
                     next.put("retryAt", now + maxOf(response.retryAfterMillis, if (response.status == 429) 60 * 60 * 1000L else 5 * 60 * 1000L))
@@ -89,6 +98,7 @@ internal object MetWeather {
             val next = JSONObject().put("temperature", reading.temperature).put("condition", reading.condition)
                 .put("fetchedAt", reading.fetchedAt).put("freshUntil", maxOf(response.expires, now + HALF_HOUR))
                 .put("modified", response.modified ?: saved?.optString("modified").orEmpty())
+                .put("forecast", forecast)
             runCatching { save(next) }
             WeatherResult(reading, if (response.status == 203) "MET Norway · API обновляется" else "")
         } catch (e: CancellationException) { throw e }

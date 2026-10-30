@@ -26,7 +26,7 @@ import java.io.InterruptedIOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class AppRow(val app: RemoteApp, val installed: InstalledApp?) {
-    val updateAvailable: Boolean get() = installed == null || installed.versionCode < app.versionCode
+    val updateAvailable: Boolean get() = app.installable && (installed == null || installed.versionCode < app.versionCode)
 }
 
 data class CatalogUiState(
@@ -45,14 +45,52 @@ data class CatalogUiState(
 )
 
 class CatalogViewModel @JvmOverloads constructor(application: Application,
-    private val repository: CatalogRepository = CatalogRepository(application.applicationContext)
+    private val repository: CatalogRepository = CatalogRepository(application.applicationContext),
+    private val installOperation: (Context, RemoteApp, (Long, Long) -> Unit) -> Result<Int> = DefaultInstall
 ) : AndroidViewModel(application) {
+    // Keep installOperation as the last constructor argument for existing trailing-lambda callers.
+    private val prefetchOperation: ((Context, RemoteApp, () -> Boolean) -> Unit)? =
+        if (installOperation === DefaultInstall) DefaultPrefetch else null
+    companion object {
+        val DefaultInstall: (Context, RemoteApp, (Long, Long) -> Unit) -> Result<Int> =
+            { context, app, progress -> AppInstaller().install(context, app, progress) }
+        val DefaultPrefetch: (Context, RemoteApp, () -> Boolean) -> Unit = { context, app, stopped ->
+            AppInstaller().stage(context, app) { _, _ -> if (stopped()) throw InterruptedIOException("Загрузка отменена") }
+        }
+        /** Parallel downloads; Android still shows one install confirmation at a time. */
+        const val PARALLEL_DOWNLOADS = 2
+    }
+    private var prefetchJob: kotlinx.coroutines.Job? = null
+    private val prefetched = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /** Selected APKs download in the background without waiting for each installation result. */
+    private fun prefetchQueue() {
+        val operation = prefetchOperation ?: return
+        // The item installNext() takes first downloads with its own progress bar; prefetch the rest.
+        val pending = queue.remaining.drop(if (queue.current == null) 1 else 0).filter { it.packageName !in prefetched }
+        if (pending.isEmpty() || prefetchJob?.isActive == true) return
+        prefetchJob = viewModelScope.launch(Dispatchers.IO) {
+            val gate = kotlinx.coroutines.sync.Semaphore(PARALLEL_DOWNLOADS)
+            pending.map { app ->
+                launch {
+                    gate.acquire()
+                    try {
+                        if (stopDownload.get() || queue.remaining.none { it.packageName == app.packageName }) return@launch
+                        runCatching { operation(appContext, app) { stopDownload.get() } }
+                            .onSuccess { prefetched += app.packageName }
+                        // A failed prefetch is not reported here: the install step retries and shows the real error.
+                    } finally { gate.release() }
+                }
+            }.forEach { it.join() }
+        }
+    }
     private val appContext = application.applicationContext
     private val installer = AppInstaller()
     private val queueStore = InstallQueueStore(appContext)
     private var queue = queueStore.load() ?: InstallQueueState()
     private var needsRecovery = queue.current != null
     private var downloadRunning = false
+    private var hostResumed = false
     private var operationId = 0
     private var loadRunning = false
     private var lastRefreshAt = 0L
@@ -119,6 +157,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     }
 
     fun refreshCatalogIfIdle() {
+        if (!UpdateSettings(appContext).autoCheck) return
         if (!isBusy() && android.os.SystemClock.elapsedRealtime() - lastRefreshAt >= 5 * 60 * 1000L)
             loadCatalog(clearMessage = false)
     }
@@ -136,12 +175,17 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             try {
                 if (_uiState.value.rows.isEmpty()) {
                     val local = withContext(Dispatchers.IO) {
-                        repository.loadLocal()?.map { app -> AppRow(app, installedApp(app.packageName)) }
+                        repository.loadLocal()?.let { CuratedCatalog.decorate(it, appContext.packageName) }?.map { app -> AppRow(app, installedApp(app.packageName)) }
                     }
                     if (!local.isNullOrEmpty()) _uiState.value = _uiState.value.copy(rows = local, isLoading = false)
                 }
                 val rows = withContext(Dispatchers.IO) {
-                    repository.load().map { app -> AppRow(app, installedApp(app.packageName)) }
+                    CuratedCatalog.decorate(repository.load(), appContext.packageName).map { app -> AppRow(app, installedApp(app.packageName)) }
+                }
+                if (!repository.offline) {
+                    val updates = rows.filter { it.installed != null && it.updateAvailable }.map { it.app }
+                    UpdateStatus.record(appContext, updates)
+                    UpdateNotifier(appContext).publish(updates)
                 }
                 val selectable = rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()
                 val cachedWarning = "Не удалось обновить каталог. Показана сохранённая версия; для загрузки APK нужен интернет."
@@ -167,8 +211,24 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
                 )
             } finally {
                 loadRunning = false
+                if (installAllRequested) runPendingInstallAll()
             }
         }
+    }
+
+    private var installAllRequested = false
+    /** Every installed app with a newer verified version, in one queue: downloads in parallel, Android asks to confirm each install in turn. */
+    fun installAllUpdates(context: Context) {
+        installAllRequested = true
+        if (!loadRunning && _uiState.value.rows.isNotEmpty()) runPendingInstallAll(context)
+    }
+    private fun runPendingInstallAll(context: Context = appContext) {
+        if (isBusy()) { installAllRequested = false; return }
+        val updates = _uiState.value.rows.filter { it.installed != null && it.updateAvailable }.map { it.app.packageName }.toSet()
+        installAllRequested = false
+        if (updates.isEmpty()) { _uiState.value = _uiState.value.copy(message = "Все приложения уже обновлены"); return }
+        _uiState.value = _uiState.value.copy(selectedPackages = updates)
+        installSelected(context)
     }
 
     fun toggleSelection(packageName: String) {
@@ -204,15 +264,17 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             openUnknownSourcesSettings(context)
             return
         }
-        if (prepareQueue(waitingForPermission = false)) installNext()
+        if (prepareQueue(waitingForPermission = false)) { prefetchQueue(); installNext() }
     }
 
     /** Continues only work explicitly requested before opening Android settings. */
     fun onHostResumed(context: Context) {
+        hostResumed = true
         if (queue.waitingForPermission) {
             if (installer.canRequestPackageInstalls(context)) {
                 saveQueue(queue.copy(waitingForPermission = false))
                 _uiState.value = _uiState.value.copy(permissionRequested = false)
+                prefetchQueue()
                 installNext()
             } else {
                 stopWaitingForPermission("Разрешение на установку не предоставлено. Выбранные приложения сохранены.")
@@ -221,6 +283,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             needsRecovery = false
             recoverInstallation()
         } else if (queue.current == null && queue.remaining.isNotEmpty()) {
+            prefetchQueue()
             installNext()
         }
         refreshInstalledRows()
@@ -239,6 +302,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             return false
         }
         InstallEvents.snapshot.value?.let { InstallEvents.consume(appContext, it.sessionId) }
+        prefetchJob?.cancel(); prefetched.clear()
         stopDownload.set(false)
         saveQueue(
             InstallQueueState(
@@ -273,7 +337,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     }
 
     private fun installNext() {
-        if (queue.current != null || queue.waitingForPermission || downloadRunning) return
+        if (!hostResumed || queue.current != null || queue.waitingForPermission || downloadRunning) return
         val next = queue.remaining.firstOrNull()
         if (next == null) {
             finishQueue()
@@ -293,7 +357,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         downloadRunning = true
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                installer.install(appContext, next) { bytes, total ->
+                installOperation(appContext, next) { bytes, total ->
                     if (stopDownload.get()) throw InterruptedIOException("Установка отменена")
                     viewModelScope.launch {
                         if (operation == operationId && queue.current?.packageName == next.packageName) {
@@ -339,6 +403,8 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             _uiState.value = _uiState.value.copy(message = "Подтвердите установку ${current.name} в окне Android")
             return
         }
+        // STATUS_SUCCESS is Android's authoritative final result. Package visibility
+        // may hide a successfully installed non-launchable package from this caller.
         val success = result.status == PackageInstaller.STATUS_SUCCESS
         completeCurrent(
             success,
@@ -372,6 +438,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         }
         val current = queue.current ?: return
         stopDownload.set(true)
+        prefetchJob?.cancel(); prefetched.clear()
         saveQueue(queue.copy(remaining = emptyList(), cancelRequested = true))
         val sessionId = queue.sessionId
         if (sessionId != null) {
@@ -419,6 +486,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
 
     private fun completeCurrent(success: Boolean, message: String) {
         val current = queue.current ?: return
+        queueStore.recordOutcome(current, success)
         if (!success && current.packageName == "com.example.homeezch.usb") {
             setupPrefs.edit().remove("open_after_install").apply()
         }
@@ -440,9 +508,10 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
             completedCount = queue.completedCount,
             failures = failures,
             message = message,
-            selectedPackages = _uiState.value.selectedPackages - current.packageName
+            selectedPackages = if (success) _uiState.value.selectedPackages - current.packageName else _uiState.value.selectedPackages
         )
         refreshInstalledRows()
+        UpdateStatus.changed(appContext)
         if (!downloadRunning) installNext()
     }
 
@@ -457,7 +526,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         _uiState.value = _uiState.value.copy(
             installing = null,
             permissionRequested = false,
-            selectedPackages = emptySet(),
+            selectedPackages = _uiState.value.selectedPackages.intersect(_uiState.value.rows.filter { it.updateAvailable }.map { it.app.packageName }.toSet()),
             message = message,
             downloadBytes = 0,
             totalBytes = 0
@@ -469,6 +538,7 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
         val rows = _uiState.value.rows
         if (rows.isEmpty()) return
         val refreshed = rows.map { it.copy(installed = installedApp(it.app.packageName)) }
+        UpdateNotifier(appContext).publish(refreshed.filter { it.installed != null && it.updateAvailable }.map { it.app })
         _uiState.value = _uiState.value.copy(
             rows = refreshed,
             selectedPackages = if (isBusy()) _uiState.value.selectedPackages
@@ -488,5 +558,12 @@ class CatalogViewModel @JvmOverloads constructor(application: Application,
     private fun saveQueue(value: InstallQueueState) {
         queue = value
         queueStore.save(value)
+    }
+
+    fun onHostPaused() { hostResumed = false }
+
+    override fun onCleared() {
+        stopDownload.set(true)
+        super.onCleared()
     }
 }

@@ -79,13 +79,13 @@ internal object WallpaperSettings {
     SettingsItem("Экран", "Режим оформления", modeHelp, modeName) {
         save(choice.copy(mode = WallpaperMode.entries[(choice.mode.ordinal + 1) % 3]))
     }
-    SettingsItem("Обои", "Живые обои · Космос", "Плавное движение исходного космического фона без дополнительных файлов.",
+    SettingsItem("Обои", "Живые обои · Птица", "Медленное движение фона. Яркие детали находятся выше рядов приложений.",
         if (choice.moving && choice.video == null) "Выбраны" else null) { save(choice.copy(moving = true, video = null, image = null)) }
     SettingsItem("Обои", "Выбрать видеообои / USB", "Ваше видео повторяется без звука и останавливается при выходе с рабочего стола.",
         if (choice.moving && choice.video != null) "Выбраны" else null) { picker.launch(arrayOf("video/*")) }
     SettingsItem("Обои", "Выбрать изображение / USB", "Ваш фон сохраняется после перезагрузки.",
         if (choice.image != null) "Выбран" else null) { imagePicker.launch(arrayOf("image/*")) }
-    SettingsItem("Обои", "Вернуть исходный фон", "Неподвижные обои из оригинального оформления.",
+    SettingsItem("Обои", "Вернуть исходный фон", "Неподвижный фон с синей металлической птицей. Тёмная область сохраняет читаемость иконок.",
         if (!choice.moving && choice.image == null) "Выбран" else null) { save(choice.copy(moving = false, video = null, image = null)) }
     error?.let { Text(it) }
 }
@@ -94,6 +94,7 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
     mode == WallpaperMode.LITE || (mode == WallpaperMode.AUTO && (lowRam || savingPower))
 
 @Composable internal fun LiveWallpaper(premium: Boolean) {
+    val effects = LocalRenderProfile.current.heavyEffects
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     var choice by remember { mutableStateOf(WallpaperSettings.load(context)) }
@@ -143,18 +144,35 @@ internal fun shouldUseLite(mode: WallpaperMode, lowRam: Boolean, savingPower: Bo
             }.getOrNull()
         } }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    val cachedStatic = !choice.moving && !lowRam && !powerSaving
+    Box(Modifier.fillMaxSize().graphicsLayer {
+        compositingStrategy = if (cachedStatic) androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+            else androidx.compose.ui.graphics.CompositingStrategy.Auto
+    }.background(Color.Black)) {
         if (custom != null) Image(custom!!, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else if (choice.moving && choice.video == null && resumed && !powerSaving) {
-            val transition = rememberInfiniteTransition(label = "cosmos")
-            val motion by transition.animateFloat(1f, 1.025f, infiniteRepeatable(tween(18000, easing = LinearEasing), RepeatMode.Reverse), label = "slowOrbit")
-            Image(painterResource(R.drawable.cosmic_wallpaper), null, contentScale = ContentScale.Crop,
+        else if (choice.moving && choice.video == null && resumed && !powerSaving && effects) {
+            // A 2.5 % drift over 18 s moves well under a pixel per vsync: 8 updates a second look identical
+            // to 60 but stop the full-screen wallpaper from being redrawn every frame under the tiles.
+            var motion by remember { mutableFloatStateOf(1f) }
+            LaunchedEffect(Unit) {
+                val start = android.os.SystemClock.uptimeMillis()
+                while (true) {
+                    val t = ((android.os.SystemClock.uptimeMillis() - start) % 36_000L) / 18_000f
+                    motion = 1f + .025f * (if (t <= 1f) t else 2f - t)
+                    delay(125)
+                }
+            }
+            Image(painterResource(R.drawable.premium_blue_eagle), null, contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = motion; scaleY = motion })
-        } else Image(painterResource(R.drawable.cosmic_wallpaper), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        if (choice.moving && choice.video != null && resumed && !powerSaving) key(choice.video, resumeGeneration) {
+        } else Image(painterResource(R.drawable.premium_blue_eagle), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (choice.moving && choice.video != null && resumed && !powerSaving && effects) key(choice.video, resumeGeneration) {
             VideoLayer(Uri.parse(choice.video))
         }
         Box(Modifier.fillMaxSize().background(Color(0x3301050C)))
+        // A predictable dark field keeps labels readable even over bright custom video.
+        if (choice.image != null || choice.video != null) Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(
+            0f to Color(0x9901050C), .18f to Color(0x2201050C), .36f to Color(0x6601050C),
+            .52f to Color(0xBB01050C), 1f to Color(0xCC01050C))))
     }
 }
 

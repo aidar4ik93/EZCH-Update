@@ -13,6 +13,7 @@ local.properties
 **/build/
 **/.gradle/
 **/.kotlin/
+**/.cxx/
 **/local.properties
 __pycache__/
 *.bak

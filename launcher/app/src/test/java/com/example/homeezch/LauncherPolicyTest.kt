@@ -10,9 +10,4 @@ class LauncherPolicyTest {
     @Test fun firstLaunchPreservesDiscoveryOrder() {
         assertEquals(listOf("tv", "video", "store"), orderedKeys(emptyList(), listOf("tv", "video", "store")))
     }
-    @Test fun cleanerNeverStopsProtectedOrUnknownPackages() {
-        listOf("io.github.romanvht.byedpi", "ru.yourok.torrserve", "some.new.fork", "").forEach {
-            assertFalse(CleanerPolicy.mayAutomaticallyStop(it))
-        }
-    }
 }

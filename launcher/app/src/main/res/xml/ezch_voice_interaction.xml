@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.example.homeezch.ai.EzchVoiceSessionService"
+    android:recognitionService="com.example.homeezch.ai.EzchRecognitionService"
+    android:settingsActivity="com.example.homeezch.ai.AssistantSettingsActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false" />

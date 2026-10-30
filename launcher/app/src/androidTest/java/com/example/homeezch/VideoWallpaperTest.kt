@@ -30,7 +30,8 @@ class VideoWallpaperTest {
             device.takeScreenshot(shot)
             BitmapFactory.decodeFile(shot.path)?.let { bitmap ->
                 val color = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2); bitmap.recycle()
-                android.graphics.Color.red(color) > 130 && android.graphics.Color.blue(color) > 130 && android.graphics.Color.green(color) < 60
+                // The readability scrim deliberately darkens custom video under app rows.
+                android.graphics.Color.red(color) > 20 && android.graphics.Color.blue(color) > 20 && android.graphics.Color.green(color) < 20
             } == true
         }
         ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)

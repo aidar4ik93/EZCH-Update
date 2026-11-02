@@ -79,28 +79,6 @@
       "iconSha256": "62c3c729c2837a59d1308e82050054d53566b7a29baadbb062c3a7e0e861bfbb"
     },
     {
-      "name": "Eva TV Premium",
-      "packageName": "tv.eva.app",
-      "versionCode": 75,
-      "versionName": "1.7.7",
-      "signerSha256": "6499f4c87ad289868219b35079c3e5c26dd359ca0e35bba5fc1455359805b23e",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1gS6lpqKinlvX98MUzglnVAA3YtWJQupA&export=download&confirm=t",
-      "apkPath": "/Eva TV Premium 1.7.7.apk",
-      "sha256": "24984c7c35bbebcd015b23ff604693d8e8ac4ae04d6275374f1fd805e5b7a25a",
-      "sizeBytes": 62313789
-    },
-    {
-      "name": "Eva TV Pro",
-      "packageName": "tv.eva.pro",
-      "versionCode": 75,
-      "versionName": "1.7.7",
-      "signerSha256": "c6f8315913fef3ea99bfbd5e7ab690ede493b8408bc97a57152e248a3f56739b",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1kqcjkonSw9rkwgq2upOqvAuKN4dcNW2J&export=download&confirm=t",
-      "apkPath": "/Eva TV Pro 1.7.7.apk",
-      "sha256": "713ec3e27ba69c526803fd5e611ce5ffae834c54eb16cc1287653414985c627b",
-      "sizeBytes": 62211963
-    },
-    {
       "name": "Factory Menu",
       "packageName": "com.stb.factorymenu",
       "versionCode": 1,
@@ -125,17 +103,6 @@
       "sizeBytes": 24252868,
       "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8657ec1ee230e2811dd5a872239f04fab364898910fe9dc1360eb8d5d98d8ecd.png",
       "iconSha256": "caf6fa984cf19e87bf1fcd55c1b72cda63e1eb577cb7dbed76a1419f5cad2f41"
-    },
-    {
-      "name": "Futuba",
-      "packageName": "me.pnsrc.futuba",
-      "versionCode": 320730,
-      "versionName": "0.1.15b",
-      "signerSha256": "5d7f9d80600dfd7ddc9c30032ec02062100da5a87acdc05189e4000a85072940",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1rIFuN8b8_RSyajfrpgdHlefSnlfiY2oo&export=download&confirm=t",
-      "apkPath": "/Futuba 0.1.15b.apk",
-      "sha256": "93e12868ad28390da3afcd4810f0981cf2fa0b8ccc8283b99a60a71a4b5fc407",
-      "sizeBytes": 6629224
     },
     {
       "name": "IPTV Pro",

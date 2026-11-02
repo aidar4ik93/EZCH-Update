@@ -17,11 +17,15 @@ import sys
 import tempfile
 import urllib.request
 import os
+import shutil
 
 spec = importlib.util.spec_from_file_location("catalog_common", Path(__file__).with_name("sync-yandex-catalog.py"))
 common = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = common
 spec.loader.exec_module(common)
+icon_spec = importlib.util.spec_from_file_location("catalog_icons", Path(__file__).with_name("catalog-icons.py"))
+icons = importlib.util.module_from_spec(icon_spec)
+icon_spec.loader.exec_module(icons)
 SyncError = common.SyncError
 FOLDER_ID = "1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB"
 FOLDER_URL = "https://drive.google.com/drive/folders/" + FOLDER_ID
@@ -125,7 +129,86 @@ def active_project_catalog(apps):
                 app.get("apkUrl", "").startswith("https://github.com/aidar4ik93/EZCH-Update/releases/download/")]
     return apps
 
+ICON_BASE = "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/"
+
+
+class IconBatch:
+    """Stage icons until the whole scan succeeds; a failed scan never removes assets."""
+    def __init__(self, output, staging):
+        self.directory = Path(output).resolve().parent / "catalog-icons"
+        self.staging = Path(staging)
+        self.attempted = set()
+
+    def attach(self, app, apk, aapt2):
+        self.attempted.add(app["sha256"])
+        app.pop("iconUrl", None)
+        app.pop("iconSha256", None)
+        name = app["sha256"] + ".png"
+        destination = self.staging / name
+        existing = self.directory / name
+        try:
+            if not destination.exists() and existing.exists():
+                try:
+                    icons.png_digest(existing)
+                    shutil.copyfile(existing, destination)
+                except (icons.IconError, OSError, ValueError, SyntaxError):
+                    pass  # Re-render a damaged local asset from the verified APK.
+            if destination.exists():
+                digest = icons.png_digest(destination)
+            else:
+                digest = icons.extract(apk, aapt2, destination)
+            app.update(iconUrl=ICON_BASE + name, iconSha256=digest)
+        except (icons.IconError, OSError, ValueError, SyntaxError) as error:
+            destination.unlink(missing_ok=True)
+            print("Icon unavailable for " + app["name"] + ": " + str(error).replace("\n", " "), flush=True)
+
+    def retained(self, app, inspector):
+        """Retained project APKs must match the published bytes and signer too."""
+        name = app["sha256"] + ".png"
+        if (self.staging / name).exists() or (self.directory / name).exists():
+            self.attach(app, None, inspector.aapt2)
+            if app.get("iconUrl"): return
+        path = self.staging / (app["sha256"] + ".apk")
+        try:
+            opener = urllib.request.build_opener(common.HttpsRedirectHandler())
+            digest, size = hashlib.sha256(), 0
+            with opener.open(app["apkUrl"], timeout=90) as response, path.open("wb") as target:
+                while chunk := response.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > app["sizeBytes"]: raise icons.IconError("Retained APK exceeds published size")
+                    digest.update(chunk); target.write(chunk)
+            if size != app["sizeBytes"] or digest.hexdigest() != app["sha256"]:
+                raise icons.IconError("Retained APK checksum/size mismatch")
+            metadata = inspector._metadata(path)
+            if any(metadata.get(key) != app.get(key) for key in ("packageName", "versionCode", "signerSha256")):
+                raise icons.IconError("Retained APK metadata differs")
+            self.attach(app, path, inspector.aapt2)
+        except (OSError, ValueError, SyncError) as error:
+            app.pop("iconUrl", None); app.pop("iconSha256", None)
+            print("Icon unavailable for " + app["name"] + ": " + str(error).replace("\n", " "), flush=True)
+        finally:
+            path.unlink(missing_ok=True)
+
+    def publish(self, apps, output):
+        self.directory.mkdir(parents=True, exist_ok=True)
+        wanted = {app["sha256"] + ".png" for app in apps if app.get("iconUrl")}
+        for name in wanted:
+            source = self.staging / name
+            if source.exists(): source.replace(self.directory / name)
+        # Referenced assets exist before the JSON can become visible.
+        changed = common.write_catalog(output, apps)
+        for path in self.directory.glob("*.png"):
+            if path.name not in wanted: path.unlink()
+        return changed
+
+
 def sync(api, cache, output, sdk, keep_project_releases=True):
+    Path(cache).mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="icons-", dir=cache) as staging:
+        return _sync(api, cache, output, sdk, keep_project_releases, IconBatch(output, staging))
+
+
+def _sync(api, cache, output, sdk, keep_project_releases, batch):
     cache = Path(cache); cache.mkdir(parents=True, exist_ok=True)
     items = api.list_files()
     inspector = common.SdkInspector(api, cache, *common.sdk_tools(sdk))
@@ -154,6 +237,7 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
                         continue
                     app = {**metadata, "apkUrl": download_url(item.id), "apkPath": "/" + item.name,
                         "sha256": sha, "sizeBytes": item.size}
+                    batch.attach(app, path, inspector.aapt2)
                     previous = packages.get(app["packageName"])
                     if previous is None or (-app["versionCode"], app["apkUrl"]) < (-previous["versionCode"], previous["apkUrl"]):
                         packages[app["packageName"]] = app
@@ -177,7 +261,14 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
     # Preservation already resolves legacy/project versions and signer continuity.
     if not keep_project_releases:
         apps = active_project_catalog(apps)
-    changed = common.write_catalog(output, apps)
+    for app in apps:
+        if app["sha256"] not in batch.attempted:
+            batch.retained(app, inspector)
+        elif (batch.staging / (app["sha256"] + ".png")).exists():
+            batch.attach(app, None, inspector.aapt2)
+        else:
+            app.pop("iconUrl", None); app.pop("iconSha256", None)
+    changed = batch.publish(apps, output)
     print(f"Google Drive catalog {'updated' if changed else 'unchanged'}: {len(apps)} entries from {len(items)} APKs")
     return apps
 

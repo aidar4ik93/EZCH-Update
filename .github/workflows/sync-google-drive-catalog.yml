@@ -4,12 +4,17 @@ on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/**catalog*.py'
+      - 'scripts/validate-apps-json.ps1'
+      - '.github/workflows/sync-google-drive-catalog.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: google-drive-catalog-sync
+  group: google-drive-catalog-sync-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -31,8 +36,15 @@ jobs:
           packages: platform-tools
           cmdline-tools-version: '12266719'
           log-accepted-android-sdk-licenses: false
+      - name: Prepare original icon renderers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y librsvg2-bin
+          python3 -m pip install 'Pillow==11.3.0'
       - name: Verify synchronization behavior
-        run: python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+          python3 -m unittest discover -s scripts -p 'test_catalog_icons.py' -v
       - name: Prepare Android SDK build tools
         shell: bash
         run: |
@@ -48,17 +60,19 @@ jobs:
         shell: pwsh
         run: ./scripts/validate-apps-json.ps1
       - name: Commit catalog only when it changes
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name != 'pull_request'
         shell: bash
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if git diff --quiet -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json; then
+          mkdir -p catalog-icons
+          git add -A -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json catalog-icons/
+          if git diff --cached --quiet; then
             echo 'Catalog is unchanged'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json
           git commit -m 'Update Google Drive application catalog'
           # Never replay an older verified snapshot over a release published
           # while the complete folder scan was running. The next run rescans.
@@ -68,3 +82,10 @@ jobs:
             exit 0
           fi
           git push origin "HEAD:$DEFAULT_BRANCH"
+      - name: Save verified catalog and original icons
+        uses: actions/upload-artifact@v5
+        with:
+          name: verified-google-drive-catalog
+          path: |
+            apps.json
+            catalog-icons/

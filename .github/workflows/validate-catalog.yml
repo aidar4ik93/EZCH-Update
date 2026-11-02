@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - apps.json
+      - 'catalog-icons/**'
       - scripts/validate-apps-json.ps1
       - .github/workflows/validate-catalog.yml
   push:
@@ -11,6 +12,7 @@ on:
       - main
     paths:
       - apps.json
+      - 'catalog-icons/**'
       - scripts/validate-apps-json.ps1
       - .github/workflows/validate-catalog.yml
 

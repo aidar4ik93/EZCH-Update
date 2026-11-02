@@ -201,13 +201,13 @@
     {
       "name": "RuStore",
       "packageName": "ru.vk.store.tv",
-      "versionCode": 1110006,
-      "versionName": "1.110.0.6",
+      "versionCode": 1113003,
+      "versionName": "1.113.0.3",
       "signerSha256": "661f20828ef780de0b79bc59f26a30864316355f30e4f91cfa14a20791839914",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1XOr-FO50pHkz19CwBE3fgKo6k0GPNUVV&export=download&confirm=t",
-      "apkPath": "/RuStore 1.110.0.6.apk",
-      "sha256": "aac6945a9f781687b22a945776c98a2897fa92683c78347610a65b8c8968ca7f",
-      "sizeBytes": 23308904
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1vtsHm2O19gLe26WA_L2Ta3qlMhTivKKQ&export=download&confirm=t",
+      "apkPath": "/RuStore-1.113.0.3.apk",
+      "sha256": "a3c3e7f0b26d08099bd13a672bf58ee16e3412d7418d2a6fb5a5023a7924e95a",
+      "sizeBytes": 22652579
     },
     {
       "name": "RUTUBE",

@@ -25,6 +25,8 @@ DEFAULT_PUBLIC_URL = "https://disk.yandex.ru/d/-LpAmZavtLNwTA"
 API_ROOT = "https://cloud-api.yandex.net/v1/disk/public/resources"
 MAX_APK_BYTES = 1024 * 1024 * 1024
 QUARANTINED_HASHES = frozenset({
+    # Send files to TV Pro v1.4.23: apksigner rejects missing META-INF/MANIFEST.MF.
+    "b2bc07e699f0deb1657949ccf5b18e64799539565c660c625b39a1caee0163c6",
     "ae3aa779708fc2d32c298871af6cc139ca4864c18bf8275a22d1726da323a8bc",
     "8525943680e10080489107c6a52df13dc459c832c3ee8f550ad0ada669bac74c",
     "3d84816985f927cc9aecae2015206423d431e402a4a8cc2603e210a21d5620e1",

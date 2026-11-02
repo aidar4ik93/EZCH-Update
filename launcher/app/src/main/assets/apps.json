@@ -56,15 +56,81 @@
       "sizeBytes": 2748792
     },
     {
+      "name": "BYLAMPA",
+      "packageName": "top.rootu.bylumpa",
+      "versionCode": 581,
+      "versionName": "1.13.5",
+      "signerSha256": "180c33bc40609e68f90b18f037cc2facd2b00b205add1370faa8cf400f174647",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1C2q5Iapo6TokWAFSc1huhbXG213_s5-F&export=download&confirm=t",
+      "apkPath": "/BYLAMPA 1.13.5.apk",
+      "sha256": "70fce4747511ec455e14d4076fdddb9538ff5e312999e8ded0fe21faa5dcaef7",
+      "sizeBytes": 11897554
+    },
+    {
+      "name": "Eva TV Premium",
+      "packageName": "tv.eva.app",
+      "versionCode": 75,
+      "versionName": "1.7.7",
+      "signerSha256": "6499f4c87ad289868219b35079c3e5c26dd359ca0e35bba5fc1455359805b23e",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1gS6lpqKinlvX98MUzglnVAA3YtWJQupA&export=download&confirm=t",
+      "apkPath": "/Eva TV Premium 1.7.7.apk",
+      "sha256": "24984c7c35bbebcd015b23ff604693d8e8ac4ae04d6275374f1fd805e5b7a25a",
+      "sizeBytes": 62313789
+    },
+    {
+      "name": "Eva TV Pro",
+      "packageName": "tv.eva.pro",
+      "versionCode": 75,
+      "versionName": "1.7.7",
+      "signerSha256": "c6f8315913fef3ea99bfbd5e7ab690ede493b8408bc97a57152e248a3f56739b",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1kqcjkonSw9rkwgq2upOqvAuKN4dcNW2J&export=download&confirm=t",
+      "apkPath": "/Eva TV Pro 1.7.7.apk",
+      "sha256": "713ec3e27ba69c526803fd5e611ce5ffae834c54eb16cc1287653414985c627b",
+      "sizeBytes": 62211963
+    },
+    {
+      "name": "Factory Menu",
+      "packageName": "com.stb.factorymenu",
+      "versionCode": 1,
+      "versionName": "1.1",
+      "signerSha256": "5aa077c46197e78588555aabc144557e39241962f2acc5a33038fe93881867cb",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1k-uBnVZFQyuS03wmZrMG5_Wt84XQiddl&export=download&confirm=t",
+      "apkPath": "/Factory Menu 1.1.apk",
+      "sha256": "ecd4876a15c6f20f80d860584fcab57563653ae87a91ca938ab357081340a7b5",
+      "sizeBytes": 15859
+    },
+    {
       "name": "File Manager +",
       "packageName": "com.alphainventor.filemanager",
-      "versionCode": 2103078,
-      "versionName": "3.7.8",
+      "versionCode": 2403085,
+      "versionName": "3.8.5",
       "signerSha256": "0cfb4663831a0fb8d6973aad44e221a8ba78f7f684bd0b17d3b44bec82316484",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1de2XsNgfergiTwUxEnjXLj5f7IYxLNk4&export=download&confirm=t",
-      "apkPath": "/Файловый менеджер + 3.7.8.apk",
-      "sha256": "febfb452c424c72a43d62037da03d14fa531573e466db196e24ac8e4de2d0358",
-      "sizeBytes": 24237018
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1vD-60YymGPgcMpny7OW2-btvTkBNcgmi&export=download&confirm=t",
+      "apkPath": "/Файловый менеджер + 3.8.5.apk",
+      "sha256": "8657ec1ee230e2811dd5a872239f04fab364898910fe9dc1360eb8d5d98d8ecd",
+      "sizeBytes": 24252868
+    },
+    {
+      "name": "Futuba",
+      "packageName": "me.pnsrc.futuba",
+      "versionCode": 320730,
+      "versionName": "0.1.15b",
+      "signerSha256": "5d7f9d80600dfd7ddc9c30032ec02062100da5a87acdc05189e4000a85072940",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1rIFuN8b8_RSyajfrpgdHlefSnlfiY2oo&export=download&confirm=t",
+      "apkPath": "/Futuba 0.1.15b.apk",
+      "sha256": "93e12868ad28390da3afcd4810f0981cf2fa0b8ccc8283b99a60a71a4b5fc407",
+      "sizeBytes": 6629224
+    },
+    {
+      "name": "IPTV Pro",
+      "packageName": "ru.iptvremote.android.iptv.pro",
+      "versionCode": 1106,
+      "versionName": "6.2.2",
+      "signerSha256": "0cfb4663831a0fb8d6973aad44e221a8ba78f7f684bd0b17d3b44bec82316484",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1rQnQfBIluCLGxsuvN_KjwrE9tqlONHe_&export=download&confirm=t",
+      "apkPath": "/IPTV.Pro.v6.2.2 arm7.apk",
+      "sha256": "03947ee90baf4b4fd8dbb15634658c6be4e2da063678543d6c1320b9cd536ce2",
+      "sizeBytes": 21108580
     },
     {
       "name": "KinoTrend",
@@ -76,6 +142,17 @@
       "apkPath": "/KinoTrend-2.3.8 (1).apk",
       "sha256": "d420d0d74fa8d12b64f2d5639bf0d0960b72c18eb5082f32270ee87bbd46d3f9",
       "sizeBytes": 3944263
+    },
+    {
+      "name": "LeanKey Keyboard Pro",
+      "packageName": "org.liskovsoft.leankeykeyboard.pro",
+      "versionCode": 80,
+      "versionName": "4.3.30",
+      "signerSha256": "955ef7b51f8fb9e4036678471a9edea0bbb3bb9b02753f796d9d6bf19dc2002d",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1ybk4jBpjxCiouVm47rLsGFsAcA2IVhxb&export=download&confirm=t",
+      "apkPath": "/Клавиатура Leanback 4.3.30.apk",
+      "sha256": "13e5b419775235c044a0006aad442833dd5b5099f32444992c4f2d14020d8b02",
+      "sizeBytes": 1885619
     },
     {
       "name": "Lift",
@@ -123,14 +200,14 @@
     },
     {
       "name": "RuStore",
-      "packageName": "ru.vk.store",
-      "versionCode": 1113003,
-      "versionName": "1.113.0.3",
-      "signerSha256": "2a2b1af23a6e62a9a96760778a2ab9e13f0241ea80cd267b9c938cfe1b33247a",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1H93AEVnNn_22JVB_iN044HnsgK_-EeJa&export=download&confirm=t",
-      "apkPath": "/RuStore 1.113.0.3.apk",
-      "sha256": "d521fb57053cd7d08dea879e58e8ff90e901cc44d71b69f9cbdaf8022f30720c",
-      "sizeBytes": 59085025
+      "packageName": "ru.vk.store.tv",
+      "versionCode": 1110006,
+      "versionName": "1.110.0.6",
+      "signerSha256": "661f20828ef780de0b79bc59f26a30864316355f30e4f91cfa14a20791839914",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1XOr-FO50pHkz19CwBE3fgKo6k0GPNUVV&export=download&confirm=t",
+      "apkPath": "/RuStore 1.110.0.6.apk",
+      "sha256": "aac6945a9f781687b22a945776c98a2897fa92683c78347610a65b8c8968ca7f",
+      "sizeBytes": 23308904
     },
     {
       "name": "RUTUBE",
@@ -146,13 +223,13 @@
     {
       "name": "Seena",
       "packageName": "com.seena.app",
-      "versionCode": 1903,
-      "versionName": "1.9.3",
+      "versionCode": 1904,
+      "versionName": "1.9.4",
       "signerSha256": "731e85d4ed0224a0aea4d58058b5d73f82cb4d4e2dcf8dc9ab54b0c5ef20c59d",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1UKhvXAWWz9cPlHrYORVNbTGtZCHgmo_0&export=download&confirm=t",
-      "apkPath": "/Seena-1.9.3.apk",
-      "sha256": "ff6186031cc0b32e029a92cbb6dba2fcfa6e74148c5eafed2b3f5f8bef0ba6c3",
-      "sizeBytes": 82961435
+      "apkUrl": "https://drive.usercontent.google.com/download?id=13_ZCA6fcBCzZosG2pME7rg6Ed6sJebFS&export=download&confirm=t",
+      "apkPath": "/Seena 1.9.4.apk",
+      "sha256": "321aa8d11f21e291304fcfb1f9ae12ddff12cdf8897b46fa2ff087effde584a3",
+      "sizeBytes": 30668775
     },
     {
       "name": "SerialTrend",
@@ -175,6 +252,17 @@
       "apkPath": "/SmartTube_stable_32.68_universal.apk",
       "sha256": "45a36e62110bcb866527ba8e9ab876f4122e1143647bbd0a97362d13803f6b94",
       "sizeBytes": 35011082
+    },
+    {
+      "name": "Televizo",
+      "packageName": "com.ottplay.ottplay",
+      "versionCode": 635,
+      "versionName": "1.9.9.44-d",
+      "signerSha256": "0a227be4f05784030f4ea8c9c3e0f13855f19653dfe049927a723463287c015b",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=12qH--pu9Bh8_WSRxYwBMKnWrG6tBievL&export=download&confirm=t",
+      "apkPath": "/Televizo 1.9.9.44-d.apk",
+      "sha256": "df570857cebbe7576c0619e18b390cb4171854f1b1c8677e0cb757d5fcdc18ef",
+      "sizeBytes": 31744753
     },
     {
       "name": "TorrServe MatriX",
@@ -212,13 +300,13 @@
     {
       "name": "Zona",
       "packageName": "mobi.zona",
-      "versionCode": 1072,
-      "versionName": "3.0.72",
+      "versionCode": 1077,
+      "versionName": "3.0.77",
       "signerSha256": "e85c1eb707f4c7987e51886a8b8eee159c4256aabfcca179626cd04aac4aa989",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1YLI4Iw0XfRB0n6jsOBOkWySwiRMeO7CM&export=download&confirm=t",
-      "apkPath": "/Zona 3.0.72.apk",
-      "sha256": "7211fd940afedc0500823f3290782ee554e459193df99ec86a84874118d132fa",
-      "sizeBytes": 29666165
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1hyv1EI5UykU2RshNaiiJiLv802s0x6Z6&export=download&confirm=t",
+      "apkPath": "/Zona 3.0.77.apk",
+      "sha256": "c82123b4c98bb59e477e74c56cb855d8dace3a7d20edf7ff52c14c3e37e500be",
+      "sizeBytes": 28873806
     },
     {
       "name": "Лайт HD TV",

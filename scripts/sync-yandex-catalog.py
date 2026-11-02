@@ -330,7 +330,7 @@ def preserve_project_releases(apps, output):
     for item in previous:
         if item.get("packageName") not in {"com.example.ezchupdate", "com.example.ezchupdate.tvtest", "com.example.homeezch.usb"}:
             continue
-        if not item.get("apkUrl", "").startswith("https://github.com/aidar4ik93/EZCH-Update/releases/download/"):
+        if not item.get("apkUrl", "").startswith(("https://github.com/aidar4ik93/EZCH-Update/releases/download/", "https://drive.usercontent.google.com/download?")):
             continue
         if (not HEX256.fullmatch(item.get("sha256", "")) or
                 not HEX256.fullmatch(item.get("signerSha256", "")) or
@@ -338,6 +338,16 @@ def preserve_project_releases(apps, output):
                 type(item.get("versionCode")) is not int or item["versionCode"] <= 0):
             raise SyncError("Project release metadata is incomplete; existing catalog preserved")
         releases[item["packageName"]] = item
+    for app in apps:
+        previous = releases.get(app["packageName"])
+        if previous is None:
+            continue
+        if (app["versionCode"] > previous["versionCode"] and
+                app.get("signerSha256") == previous["signerSha256"]):
+            releases[app["packageName"]] = app
+            print("Newer verified project APK selected: " + app["name"] + " " + app["versionName"])
+        elif app.get("signerSha256") != previous["signerSha256"]:
+            print("Project APK signer differs; keeping published version: " + app["name"])
     return list(releases.values()) + [item for item in apps if item["packageName"] not in releases]
 
 
@@ -393,3 +403,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

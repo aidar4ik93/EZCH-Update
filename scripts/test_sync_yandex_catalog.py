@@ -18,6 +18,21 @@ SPEC.loader.exec_module(sync)
 SIGNER = "1" * 64
 
 class ProjectReleaseTests(unittest.TestCase):
+    def test_newer_signed_drive_release_updates_and_remains_pinned(self):
+        old = dict(name="EZCH", packageName="com.example.ezchupdate", versionCode=32,
+                   versionName="1.8.2", sha256="2" * 64, signerSha256=SIGNER, sizeBytes=200,
+                   apkUrl="https://github.com/aidar4ik93/EZCH-Update/releases/download/v1.8.2/test.apk")
+        new = dict(old, versionCode=33, versionName="1.9.0",
+                   apkUrl="https://drive.usercontent.google.com/download?id=example12345")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "apps.json"
+            path.write_text(json.dumps({"apps": [old]}))
+            self.assertEqual(sync.preserve_project_releases([new], path), [new])
+            self.assertEqual(sync.preserve_project_releases([dict(new, signerSha256="f" * 64)], path), [old])
+            path.write_text(json.dumps({"apps": [new]}))
+            self.assertEqual(sync.preserve_project_releases([old], path), [new])
+            self.assertEqual(sync.preserve_project_releases([], path), [new])
+
     def test_release_survives_folder_sync(self):
         release = {"name": "EZCH Update", "packageName": "com.example.ezchupdate", "versionCode": 19,
                    "versionName": "1.5.1", "sha256": "2" * 64, "signerSha256": SIGNER, "sizeBytes": 200,
@@ -401,3 +416,4 @@ class CatalogSyncTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

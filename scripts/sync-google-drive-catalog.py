@@ -174,7 +174,9 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
         apps = common.preserve_project_releases(apps, output)
     # Once the TV edition is published, the old companion must not reappear
     # merely because an archived APK remains in the source folder.
-    apps = active_project_catalog(apps)
+    # Preservation already resolves legacy/project versions and signer continuity.
+    if not keep_project_releases:
+        apps = active_project_catalog(apps)
     changed = common.write_catalog(output, apps)
     print(f"Google Drive catalog {'updated' if changed else 'unchanged'}: {len(apps)} entries from {len(items)} APKs")
     return apps

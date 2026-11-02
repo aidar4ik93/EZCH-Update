@@ -107,6 +107,18 @@ class ApkExtractionTests(unittest.TestCase):
                 icons.extract(apk, "aapt2", root / "icon.png")
             self.assertFalse((root / "icon.png").exists())
 
+    def test_high_density_variant_belongs_to_the_manifest_resource(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); apk, original_aapt = self.fixture(root)
+            data = io.BytesIO(); Image.new("RGBA", (512,512), (0,180,60,255)).save(data,format="PNG")
+            with zipfile.ZipFile(apk, "a") as archive: archive.writestr("res/high.png", data.getvalue())
+            def aapt(command, **kwargs):
+                if "resources" in command:
+                    return "resource 0x7f010001 example:mipmap/icon\n  (mdpi) (file) res/icon.png type=PNG\n  (xxxhdpi) (file) res/high.png type=PNG"
+                return original_aapt(command, **kwargs)
+            with patch.object(icons.subprocess,"check_output",side_effect=aapt): icons.extract(apk,"aapt2",root/"out.png")
+            with Image.open(root/"out.png") as image: self.assertEqual(image.getpixel((128,128)), (0,180,60,255))
+
     def test_oversized_or_invalid_png_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "icon.png"

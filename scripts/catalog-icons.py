@@ -221,7 +221,14 @@ def _extract(apk, aapt2, destination):
                 return background.crop((64, 64, 320, 320)).resize((size, size), Image.Resampling.LANCZOS)
             if tree.tag != "vector": raise IconError("Unsupported drawable: " + tree.tag)
             return Image.open(io.BytesIO(svg_png(vector_svg(tree), size))).convert("RGBA")
-        image = render(icon[1])
+        reference = icon[1]
+        # aapt badging can name the low-density variant. Stay within that exact
+        # manifest resource, selecting its highest-density/adaptive variant.
+        for variants in table.values():
+            if reference in variants:
+                reference = variants[-1]
+                break
+        image = render(reference)
     buffer = io.BytesIO(); image.save(buffer, format="PNG", optimize=True)
     data = buffer.getvalue(); digest = hashlib.sha256(data).hexdigest()
     if len(data) > 1024 * 1024: raise IconError("PNG exceeds 1 MiB")

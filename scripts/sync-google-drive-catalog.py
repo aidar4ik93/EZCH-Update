@@ -139,7 +139,16 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
                     if sha in common.QUARANTINED_HASHES:
                         print("Quarantined APK excluded: " + item.name)
                         continue
-                    metadata = inspector._metadata(path)
+                    try:
+                        metadata = inspector._metadata(path)
+                    except SyncError as error:
+                        # Reject this APK, not the entire folder. SDK/tool failures
+                        # remain fatal so an environment outage cannot empty the catalog.
+                        if str(error).startswith("Android SDK inspection failed:"):
+                            raise
+                        print("Unverified APK skipped: " + item.name + ": " +
+                              str(error).replace("\n", " "), flush=True)
+                        continue
                     if (metadata["packageName"], metadata["versionCode"]) in common.QUARANTINED_VERSIONS:
                         print("Quarantined APK version excluded: " + item.name)
                         continue
@@ -158,6 +167,8 @@ def sync(api, cache, output, sdk, keep_project_releases=True):
                 except Exception: pass
     if api.list_files() != items:
         raise SyncError("Google Drive folder changed during verification; catalog preserved")
+    if not packages:
+        raise SyncError("No verified APKs found; existing catalog preserved")
     apps = sorted(packages.values(), key=lambda app: (app["name"].casefold(), app["packageName"]))
     if keep_project_releases:
         apps = common.preserve_project_releases(apps, output)
@@ -185,3 +196,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("drive_sync", Path(__file__).with_name("sync-google-drive-catalog.py"))
 drive = importlib.util.module_from_spec(spec); sys.modules[spec.name] = drive; spec.loader.exec_module(drive)
@@ -50,4 +52,51 @@ class PublicDriveTests(unittest.TestCase):
         tv = {"packageName": "com.example.ezchupdate.tvtest"}
         self.assertEqual(drive.active_project_catalog([legacy, tv]), [legacy, tv])
 
+class SyncIsolationTests(unittest.TestCase):
+    def run_sync(self, root, errors=None, download_error=False, changed=False):
+        errors = errors or {}
+        items = [drive.DriveFile("good12345678", "Good.apk", 4, 1),
+                 drive.DriveFile("bad123456789", "Bad.apk", 4, 1)]
+        class Api:
+            calls = 0
+            def list_files(self):
+                self.calls += 1
+                return items[:1] if changed and self.calls > 1 else items
+            def download(self, item, cache):
+                if download_error and item.name == "Bad.apk":
+                    raise OSError("Download unavailable")
+                path = Path(cache) / item.name
+                path.write_bytes(b"test")
+                return item, path, "a" * 64
+        def metadata(path):
+            if path.name in errors:
+                raise drive.SyncError(errors[path.name])
+            return dict(name=path.stem, packageName="example." + path.stem.lower(),
+                        versionCode=1, versionName="1", signerSha256="b" * 64)
+        with patch.object(drive.common, "sdk_tools", return_value=("a", "b", "c")), \
+             patch.object(drive.common.SdkInspector, "_metadata", side_effect=metadata):
+            return drive.sync(Api(), root / "cache", root / "apps.json", None, False)
+
+    def test_invalid_apk_is_skipped_and_corrected_file_is_retried(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            apps = self.run_sync(root, {"Bad.apk": "Android SDK rejected an APK: DOES NOT VERIFY"})
+            self.assertEqual([app["name"] for app in apps], ["Good"])
+            self.assertEqual(list((root / "cache").iterdir()), [])
+            self.assertEqual(len(self.run_sync(root)), 2)
+
+    def test_infrastructure_errors_and_changed_folder_preserve_catalog(self):
+        for options in [dict(download_error=True), dict(changed=True),
+                        dict(errors={"Bad.apk": "Android SDK inspection failed: TimeoutExpired"}),
+                        dict(errors={"Good.apk": "Invalid APK", "Bad.apk": "Invalid APK"})]:
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                output = root / "apps.json"
+                output.write_text("previous catalog")
+                with self.assertRaises((drive.SyncError, OSError)):
+                    self.run_sync(root, **options)
+                self.assertEqual(output.read_text(), "previous catalog")
+                self.assertEqual(list((root / "cache").iterdir()), [])
+
 if __name__ == "__main__": unittest.main()
+

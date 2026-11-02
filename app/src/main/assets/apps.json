@@ -9,7 +9,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1ZlEGcIm9rFJ-4L6vKmvKU8ldr0mVy4e8&export=download&confirm=t",
       "apkPath": "/EZCH Update 1.9.0.apk",
       "sha256": "25b297a20409837a476c2d19659139e66f327828c6d61e828324ee60d1848765",
-      "sizeBytes": 2366837
+      "sizeBytes": 2366837,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/25b297a20409837a476c2d19659139e66f327828c6d61e828324ee60d1848765.png",
+      "iconSha256": "2172a162b112148a5563756e601811e214a53b128cb363e0c7656d29500c369c"
     },
     {
       "packageName": "com.example.ezchupdate",
@@ -20,7 +22,9 @@
       "apkPath": "/EZCH_Update_1.8.2_Legacy.apk",
       "sha256": "277cb4d011a698409cd5227aede4b5b482af744431e3ee40b9b0154bb96c2ebd",
       "sizeBytes": 9217696,
-      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602"
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602",
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/277cb4d011a698409cd5227aede4b5b482af744431e3ee40b9b0154bb96c2ebd.png",
+      "iconSha256": "2172a162b112148a5563756e601811e214a53b128cb363e0c7656d29500c369c"
     },
     {
       "name": "EZCH Launcher",
@@ -31,7 +35,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1xNgYzcoqNNXSDY1vDsZgtugRAvQIQPU3&export=download&confirm=t",
       "apkPath": "/EZCH Launcher 0.53.1-EVA.apk",
       "sha256": "d4c71ec0a0b8186061e06382a8461e01ee77e320063b4547f6ceacd96840aa98",
-      "sizeBytes": 234675440
+      "sizeBytes": 234675440,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/d4c71ec0a0b8186061e06382a8461e01ee77e320063b4547f6ceacd96840aa98.png",
+      "iconSha256": "c8a2b502c8cf18ac64dfcaedd91e09edc8152c203a24b99c1102a35d0f7cc0b0"
     },
     {
       "name": "AmneziaVPN",
@@ -42,7 +48,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1Z7BnKQei6hMpGYkV41tiIK_bvVoHX4CA&export=download&confirm=t",
       "apkPath": "/AmneziaVPN_5.0.3.0_android11+_armeabi-v7a.apk",
       "sha256": "4647fe6c9ca2549bb02fd4000dd1834023b6967121fb0d32ec9f35f3dfba791a",
-      "sizeBytes": 71355657
+      "sizeBytes": 71355657,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/4647fe6c9ca2549bb02fd4000dd1834023b6967121fb0d32ec9f35f3dfba791a.png",
+      "iconSha256": "24011b9de7e43653826c4d2b44569b186f24643c32518f1039fc1a83ec4d92ee"
     },
     {
       "name": "ByeByeDPI",
@@ -53,7 +61,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1MlZxRbHIgDaFsV18bWnMq5bkjs-N6hDA&export=download&confirm=t",
       "apkPath": "/ByeByeDPI-v1.8.2-armeabi-v7a-release.apk",
       "sha256": "422f40c340b8dbf8f07dad42958ccae8a5b508218c838e9f7afddec6f403065f",
-      "sizeBytes": 2748792
+      "sizeBytes": 2748792,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/422f40c340b8dbf8f07dad42958ccae8a5b508218c838e9f7afddec6f403065f.png",
+      "iconSha256": "878ad6397233a10c22519320331f4d57e23b9d4f9a9bb44fc2eb93a0ce74d904"
     },
     {
       "name": "BYLAMPA",
@@ -64,7 +74,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1C2q5Iapo6TokWAFSc1huhbXG213_s5-F&export=download&confirm=t",
       "apkPath": "/BYLAMPA 1.13.5.apk",
       "sha256": "70fce4747511ec455e14d4076fdddb9538ff5e312999e8ded0fe21faa5dcaef7",
-      "sizeBytes": 11897554
+      "sizeBytes": 11897554,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/70fce4747511ec455e14d4076fdddb9538ff5e312999e8ded0fe21faa5dcaef7.png",
+      "iconSha256": "62c3c729c2837a59d1308e82050054d53566b7a29baadbb062c3a7e0e861bfbb"
     },
     {
       "name": "Eva TV Premium",
@@ -97,7 +109,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1k-uBnVZFQyuS03wmZrMG5_Wt84XQiddl&export=download&confirm=t",
       "apkPath": "/Factory Menu 1.1.apk",
       "sha256": "ecd4876a15c6f20f80d860584fcab57563653ae87a91ca938ab357081340a7b5",
-      "sizeBytes": 15859
+      "sizeBytes": 15859,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/ecd4876a15c6f20f80d860584fcab57563653ae87a91ca938ab357081340a7b5.png",
+      "iconSha256": "3565616ccb5f25fdde01c77becde6ee4a7f7966fe4b2183867de0e7dc5c339e5"
     },
     {
       "name": "File Manager +",
@@ -108,7 +122,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1vD-60YymGPgcMpny7OW2-btvTkBNcgmi&export=download&confirm=t",
       "apkPath": "/Файловый менеджер + 3.8.5.apk",
       "sha256": "8657ec1ee230e2811dd5a872239f04fab364898910fe9dc1360eb8d5d98d8ecd",
-      "sizeBytes": 24252868
+      "sizeBytes": 24252868,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8657ec1ee230e2811dd5a872239f04fab364898910fe9dc1360eb8d5d98d8ecd.png",
+      "iconSha256": "caf6fa984cf19e87bf1fcd55c1b72cda63e1eb577cb7dbed76a1419f5cad2f41"
     },
     {
       "name": "Futuba",
@@ -130,7 +146,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1rQnQfBIluCLGxsuvN_KjwrE9tqlONHe_&export=download&confirm=t",
       "apkPath": "/IPTV.Pro.v6.2.2 arm7.apk",
       "sha256": "03947ee90baf4b4fd8dbb15634658c6be4e2da063678543d6c1320b9cd536ce2",
-      "sizeBytes": 21108580
+      "sizeBytes": 21108580,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/03947ee90baf4b4fd8dbb15634658c6be4e2da063678543d6c1320b9cd536ce2.png",
+      "iconSha256": "746d7ac6039c5a688c838e0ee41f7154ea772e673d96609320b863f704885096"
     },
     {
       "name": "KinoTrend",
@@ -141,7 +159,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=17d9GiaaBW7tIFBlMCraypee3XFvFVPUE&export=download&confirm=t",
       "apkPath": "/KinoTrend-2.3.8 (1).apk",
       "sha256": "d420d0d74fa8d12b64f2d5639bf0d0960b72c18eb5082f32270ee87bbd46d3f9",
-      "sizeBytes": 3944263
+      "sizeBytes": 3944263,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/d420d0d74fa8d12b64f2d5639bf0d0960b72c18eb5082f32270ee87bbd46d3f9.png",
+      "iconSha256": "e2490fb081bf8d84638909396affd06dc91e75102b6286a6558b2065c898b67a"
     },
     {
       "name": "LeanKey Keyboard Pro",
@@ -152,7 +172,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1ybk4jBpjxCiouVm47rLsGFsAcA2IVhxb&export=download&confirm=t",
       "apkPath": "/Клавиатура Leanback 4.3.30.apk",
       "sha256": "13e5b419775235c044a0006aad442833dd5b5099f32444992c4f2d14020d8b02",
-      "sizeBytes": 1885619
+      "sizeBytes": 1885619,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/13e5b419775235c044a0006aad442833dd5b5099f32444992c4f2d14020d8b02.png",
+      "iconSha256": "af092e5c597788cf607f6050ee2bcf39a33332fdfed52dc8284beaaa887f2c83"
     },
     {
       "name": "Lift",
@@ -163,7 +185,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1zcXV1WVEZ-GjXpMbaAsjzninytukAHfk&export=download&confirm=t",
       "apkPath": "/Lift 0.2.45.apk",
       "sha256": "b81d3f8539af8d32d5f6b4f5dbf41bedb8d5577b6a8529520852fa548ca717b4",
-      "sizeBytes": 5047299
+      "sizeBytes": 5047299,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/b81d3f8539af8d32d5f6b4f5dbf41bedb8d5577b6a8529520852fa548ca717b4.png",
+      "iconSha256": "a2db783a0221551d6fdf0bced261835259576bba5319dfb65d94c9b40cf4c72b"
     },
     {
       "name": "NUM",
@@ -174,7 +198,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1RoQi0wnTCvvkLrF-oJBRSWLCtcp8u8Mo&export=download&confirm=t",
       "apkPath": "/NUM 1.0.150.apk",
       "sha256": "2a795671a8e0f958d1c0068eea5ff4284151e58d8b98e7f7fc237afc821eab6c",
-      "sizeBytes": 16645956
+      "sizeBytes": 16645956,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/2a795671a8e0f958d1c0068eea5ff4284151e58d8b98e7f7fc237afc821eab6c.png",
+      "iconSha256": "0185a12cf26a931a303cc5d489fb6d4dd92a581efd1d231eb40137d0a2170a61"
     },
     {
       "name": "PRISMA",
@@ -185,7 +211,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1plMe1JBURQdFWo37SfTUHmPPaxjuV8Gz&export=download&confirm=t",
       "apkPath": "/Prisma.v1.3.9.apk",
       "sha256": "396ef746b5a39e9e36d36696794ebad4e7b8cf8327d13688c7577eb31ce28ea9",
-      "sizeBytes": 52323984
+      "sizeBytes": 52323984,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/396ef746b5a39e9e36d36696794ebad4e7b8cf8327d13688c7577eb31ce28ea9.png",
+      "iconSha256": "3627ddd9dfedd0cf81595118b1cc7a993f422eaea2bae5f1fc8419e73823278f"
     },
     {
       "name": "Reelo",
@@ -196,7 +224,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1V_T1S3bQXjtgMR7cvERCrU8EUrmU8HoO&export=download&confirm=t",
       "apkPath": "/reelo-0.2.61-92.apk",
       "sha256": "52ac047654fd5ed28b8bd8619a3ada2bbe0b1c0b3394e1845c070365b636cd15",
-      "sizeBytes": 37724260
+      "sizeBytes": 37724260,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/52ac047654fd5ed28b8bd8619a3ada2bbe0b1c0b3394e1845c070365b636cd15.png",
+      "iconSha256": "1518de5f930aeb05131c6814233f31f34e9fc3c153ee771ad0c0944b165cd1f0"
     },
     {
       "name": "RuStore",
@@ -207,7 +237,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1vtsHm2O19gLe26WA_L2Ta3qlMhTivKKQ&export=download&confirm=t",
       "apkPath": "/RuStore-1.113.0.3.apk",
       "sha256": "a3c3e7f0b26d08099bd13a672bf58ee16e3412d7418d2a6fb5a5023a7924e95a",
-      "sizeBytes": 22652579
+      "sizeBytes": 22652579,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/a3c3e7f0b26d08099bd13a672bf58ee16e3412d7418d2a6fb5a5023a7924e95a.png",
+      "iconSha256": "81ae0a19760d34b2dc1bf13c3251ae51e115e70765763ec2baccc5ad077264f8"
     },
     {
       "name": "RUTUBE",
@@ -218,7 +250,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1k8jrev1RKJYAt9sEn-S9XOWkNZTImRrY&export=download&confirm=t",
       "apkPath": "/RUTUBE 31.16.0.TV-rustore.apk",
       "sha256": "8239adcaa835efd73ec197c420784de289bffaf2dd0111c76ba6ad105544dac3",
-      "sizeBytes": 25165178
+      "sizeBytes": 25165178,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8239adcaa835efd73ec197c420784de289bffaf2dd0111c76ba6ad105544dac3.png",
+      "iconSha256": "bb3a1665fb60288e08435a1fa56194e62bc48089e2092a4cb0fd81ad851c6ff4"
     },
     {
       "name": "Seena",
@@ -229,7 +263,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1phlIFXGNxmf6V0WiGpSPynVJs1esBpMM&export=download&confirm=t",
       "apkPath": "/Seena-1.9.4.apk",
       "sha256": "35472ff3a48bf8ee20456059c0959c0dbc7b4d840803ec06221c36299ee97d1b",
-      "sizeBytes": 31057543
+      "sizeBytes": 31057543,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/35472ff3a48bf8ee20456059c0959c0dbc7b4d840803ec06221c36299ee97d1b.png",
+      "iconSha256": "114faef8059f0969d744140c02f2fe3135b7a946722dd73db85b6ea64a2bdaca"
     },
     {
       "name": "SerialTrend",
@@ -240,7 +276,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1LQubEaIAnsxqC_AQQghhkvUIOCy6oCBb&export=download&confirm=t",
       "apkPath": "/SerialTrend 0.0.5a.apk",
       "sha256": "e05d951a434d5f8f41ec110ad21ff9beb7b7fe68fb615d9d631ff697ebade46d",
-      "sizeBytes": 3494768
+      "sizeBytes": 3494768,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/e05d951a434d5f8f41ec110ad21ff9beb7b7fe68fb615d9d631ff697ebade46d.png",
+      "iconSha256": "af4f3bd22d7189605f71af88edb1ea4f33cdbd08d9db751f336d58140912414d"
     },
     {
       "name": "SmartTube",
@@ -251,7 +289,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1nVpedou8jGg6HTY1XUJRl-Bo1fnyZcLh&export=download&confirm=t",
       "apkPath": "/SmartTube_stable_32.68_universal.apk",
       "sha256": "45a36e62110bcb866527ba8e9ab876f4122e1143647bbd0a97362d13803f6b94",
-      "sizeBytes": 35011082
+      "sizeBytes": 35011082,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/45a36e62110bcb866527ba8e9ab876f4122e1143647bbd0a97362d13803f6b94.png",
+      "iconSha256": "5156efbf9c220489ba16a8448735e54593ec4e4fc5a80e059cd1ead505a8a665"
     },
     {
       "name": "Televizo",
@@ -262,7 +302,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=12qH--pu9Bh8_WSRxYwBMKnWrG6tBievL&export=download&confirm=t",
       "apkPath": "/Televizo 1.9.9.44-d.apk",
       "sha256": "df570857cebbe7576c0619e18b390cb4171854f1b1c8677e0cb757d5fcdc18ef",
-      "sizeBytes": 31744753
+      "sizeBytes": 31744753,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/df570857cebbe7576c0619e18b390cb4171854f1b1c8677e0cb757d5fcdc18ef.png",
+      "iconSha256": "2bcb95fef50a22af49b8afa6f6f8e006f355646b72fbc775ad3a7f20896b1626"
     },
     {
       "name": "TorrServe MatriX",
@@ -273,7 +315,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1B2cDecdBUPdqW_tnFWJeXNYdhePsR1Xm&export=download&confirm=t",
       "apkPath": "/TorrServe MatriX MatriX.143.Client.apk",
       "sha256": "4b577862df6de9b22c387fd2737818a8373b9efa354c91badcc6b78f73f7c7a9",
-      "sizeBytes": 11955914
+      "sizeBytes": 11955914,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/4b577862df6de9b22c387fd2737818a8373b9efa354c91badcc6b78f73f7c7a9.png",
+      "iconSha256": "e48b9724503b8ca0913888f0338a5f529b80792d91b60dbfef90448dc6527811"
     },
     {
       "name": "VK Видео",
@@ -284,7 +328,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1pKN4yJ14LucE-D8jdn2f4atBCE_Zgmv3&export=download&confirm=t",
       "apkPath": "/VK Видео 2.116.apk",
       "sha256": "8a658e36e51a0aa7c71bc2f860f45fca13e3a9eaefc72c8e04d107c533b1cbee",
-      "sizeBytes": 64002523
+      "sizeBytes": 64002523,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8a658e36e51a0aa7c71bc2f860f45fca13e3a9eaefc72c8e04d107c533b1cbee.png",
+      "iconSha256": "d7c338ca21ba589b7151f88696024f0b53dfa4bdfe77d05c2712fdf207c02e17"
     },
     {
       "name": "VoKino",
@@ -295,7 +341,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1Tbjy3hfVqJXdOtPffnbWOvXPdFe0nrrA&export=download&confirm=t",
       "apkPath": "/VoKino 1.1.1-rustore.apk",
       "sha256": "ba2a0c8fd987e53c931d9114512c07f69012fad5d18f17f07d3fac2f1fad74bd",
-      "sizeBytes": 16729803
+      "sizeBytes": 16729803,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/ba2a0c8fd987e53c931d9114512c07f69012fad5d18f17f07d3fac2f1fad74bd.png",
+      "iconSha256": "84d96008af16d75120d4df6e0020f58b1291eb00f122ac22fd565e24cfa7a7d5"
     },
     {
       "name": "Zona",
@@ -306,7 +354,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1hyv1EI5UykU2RshNaiiJiLv802s0x6Z6&export=download&confirm=t",
       "apkPath": "/Zona 3.0.77.apk",
       "sha256": "c82123b4c98bb59e477e74c56cb855d8dace3a7d20edf7ff52c14c3e37e500be",
-      "sizeBytes": 28873806
+      "sizeBytes": 28873806,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/c82123b4c98bb59e477e74c56cb855d8dace3a7d20edf7ff52c14c3e37e500be.png",
+      "iconSha256": "2a13b55e3c6a5863b47244b7405844e6c40b08c5a9ed12f5b23ee2a9f22a0129"
     },
     {
       "name": "Лайт HD TV",
@@ -317,7 +367,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1MvQirgXeE4tmctVd75sICPZkjzCHlAfv&export=download&confirm=t",
       "apkPath": "/Лайт HD TV 7.0.0.apk",
       "sha256": "a3892b58fae6ebe0d74f68e6d248f20c1ca92cd5768762b75b5649ddd099b8f5",
-      "sizeBytes": 41181040
+      "sizeBytes": 41181040,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/a3892b58fae6ebe0d74f68e6d248f20c1ca92cd5768762b75b5649ddd099b8f5.png",
+      "iconSha256": "084866c545b03ae5c20d547c3aceece7efc45d68bf23d0a0bb6608813fecb95f"
     },
     {
       "name": "Медиаплеер Виму",
@@ -328,7 +380,9 @@
       "apkUrl": "https://drive.usercontent.google.com/download?id=1sbU7lkkwqiCUAHJOnLJR6aGQupoyxTUc&export=download&confirm=t",
       "apkPath": "/Медиаплеер Виму 10.77.apk",
       "sha256": "8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa",
-      "sizeBytes": 57554930
+      "sizeBytes": 57554930,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa.png",
+      "iconSha256": "5b6eb9352662f0bb5e6df4b23b014a1eddb8f54ca5e92cecd028d32b73377318"
     }
   ]
 }

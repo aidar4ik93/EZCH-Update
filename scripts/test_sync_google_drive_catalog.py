@@ -4,6 +4,9 @@ from pathlib import Path
 import sys
 import unittest
 import tempfile
+import hashlib
+from types import SimpleNamespace
+from PIL import Image
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("drive_sync", Path(__file__).with_name("sync-google-drive-catalog.py"))
@@ -93,10 +96,54 @@ class SyncIsolationTests(unittest.TestCase):
                 root = Path(temp)
                 output = root / "apps.json"
                 output.write_text("previous catalog")
+                icons_dir = root / "catalog-icons"; icons_dir.mkdir()
+                old_icon = icons_dir / ("f" * 64 + ".png"); old_icon.write_bytes(b"published icon")
                 with self.assertRaises((drive.SyncError, OSError)):
                     self.run_sync(root, **options)
                 self.assertEqual(output.read_text(), "previous catalog")
+                self.assertEqual(old_icon.read_bytes(), b"published icon")
+                self.assertEqual(len(list(icons_dir.iterdir())), 1)
                 self.assertEqual(list((root / "cache").iterdir()), [])
+
+    def test_missing_icon_keeps_app_and_never_emits_partial_fields(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(drive.icons, "extract", side_effect=drive.icons.IconError("no manifest icon")):
+            apps = self.run_sync(Path(temp))
+            self.assertEqual(len(apps), 2)
+            self.assertTrue(all("iconUrl" not in app and "iconSha256" not in app for app in apps))
+
+    def test_success_publishes_png_digest_and_removes_obsolete_images(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); directory = root / "catalog-icons"; directory.mkdir()
+            stale = directory / ("f"*64 + ".png"); stale.write_bytes(b"old")
+            def render(apk, aapt2, destination):
+                Image.new("RGBA", (256,256), (12,34,56,255)).save(destination)
+                return drive.icons.png_digest(destination)
+            with patch.object(drive.icons, "extract", side_effect=render):
+                apps = self.run_sync(root)
+            self.assertFalse(stale.exists())
+            self.assertEqual(len(list(directory.glob("*.png"))), 1)
+            for app in apps:
+                self.assertEqual(app["iconUrl"], drive.ICON_BASE + app["sha256"] + ".png")
+                self.assertRegex(app["iconSha256"], r"^[a-f0-9]{64}$")
+                self.assertEqual(app["iconSha256"], hashlib.sha256((directory/(app["sha256"]+".png")).read_bytes()).hexdigest())
+
+class RetainedIconTests(unittest.TestCase):
+    def test_retained_apk_checksum_is_required_before_render(self):
+        import io
+        for valid in (True, False):
+            with self.subTest(valid=valid), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); staging = root / "staging"; staging.mkdir()
+                data = b"verified retained APK bytes"
+                app = dict(name="Legacy", packageName="example.legacy", versionCode=3, signerSha256="b"*64,
+                           sha256=hashlib.sha256(data).hexdigest(), sizeBytes=len(data), apkUrl="https://example.com/release.apk")
+                inspector = SimpleNamespace(aapt2="aapt2", _metadata=lambda path: dict(app))
+                opener = SimpleNamespace(open=lambda *a, **kw: io.BytesIO(data if valid else b"wrong"))
+                with patch.object(drive.urllib.request,"build_opener",return_value=opener), patch.object(drive.icons,"extract",side_effect=drive.icons.IconError("fixture render not supported")) as render:
+                    drive.IconBatch(root/"apps.json",staging).retained(app,inspector)
+                self.assertEqual(render.call_count, 1 if valid else 0)
+                self.assertNotIn("iconUrl", app)
+                self.assertNotIn("iconSha256", app)
+                self.assertEqual(list(staging.iterdir()), [])
 
 if __name__ == "__main__": unittest.main()
 

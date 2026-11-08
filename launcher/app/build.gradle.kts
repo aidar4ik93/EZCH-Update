@@ -5,6 +5,8 @@ plugins {
 android {
     namespace = "com.example.homeezch"
     compileSdk = 37
+    // Use the same NDK as :eva-llm so APK packaging can strip native debug symbols.
+    ndkVersion = providers.gradleProperty("ezchNdkVersion").orNull ?: "27.2.12479018"
     defaultConfig {
         applicationId = "com.example.homeezch.usb"
         minSdk = 26

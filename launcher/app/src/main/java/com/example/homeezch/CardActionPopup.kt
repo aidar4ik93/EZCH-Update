@@ -43,10 +43,12 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
             }
         }
     }
+    val glass by rememberGlass()
     Popup(popupPositionProvider = position, onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true)) {
         val shape = RoundedCornerShape(18.dp)
-        Column(Modifier.width(280.dp)
+        GlassSurface(glass, shape, Modifier.width(280.dp)) {
+        Column(Modifier.fillMaxWidth()
             .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 val center = key.keyCode in listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER)
@@ -58,8 +60,7 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
                     true
                 } else center && key.action == KeyEvent.ACTION_DOWN && key.repeatCount > 0
             }
-            .background(Brush.verticalGradient(listOf(Color(0xC8233853), Color(0xC8101C30))), shape)
-            .border(1.dp, Color(0x668DC6FF), shape).padding(12.dp)) {
+            .padding(12.dp)) {
             Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1,
                 modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))
             CardMenuAction(moveLabel ?: if (source) "Переместить разъём" else "Переместить приложение", "↔",
@@ -70,6 +71,7 @@ internal fun CardActionPopup(name: String, source: Boolean, bounds: Rect?, press
             onInfo?.let { CardMenuAction(infoLabel, "ⓘ", Modifier, it) }
             onFavorite?.let { CardMenuAction("Добавить в избранное", "☆", Modifier, it) }
             onRemove?.let { CardMenuAction("Удалить с рабочего стола", "−", Modifier, it) }
+        }
         }
         LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }
     }

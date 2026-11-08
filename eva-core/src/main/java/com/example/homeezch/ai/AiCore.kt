@@ -46,7 +46,7 @@ sealed interface Action {
     /** «убери рекламу»: honest report; system-level changes belong to the EZCH Optimizer. kind: ads. */
     data class Optimize(val kind: String) : Action
     /** «перезагрузи телевизор» / «выключи приставку»: op = reboot / shutdown / sleep, through the system power menu, after «да». */
-    data class Power(val op: String) : Action
+    data class Power(val op: String, val minutes: Int? = null) : Action
 }
 sealed interface Resolution {
     data class Plan(val actions: List<Action>) : Resolution
@@ -268,7 +268,7 @@ object LocalActionRegistry : ActionRegistry {
         is Action.Diagnose -> action.topic in setOf("performance", "network")
         is Action.RecentInstall -> action.days in 1..60
         is Action.Optimize -> action.kind == "ads"
-        is Action.Power -> action.op in setOf("reboot", "shutdown", "sleep")
+        is Action.Power -> if (action.op == "timer") action.minutes != null && action.minutes in 1..1440 else action.minutes == null && action.op in setOf("reboot", "shutdown", "sleep", "wake", "cancel_timer", "timer_left")
         else -> true
     }
 }

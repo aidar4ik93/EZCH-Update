@@ -8,8 +8,10 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="remote_buttons_v1.xml" />
     <exclude domain="sharedpref" path="eva_cloud_v1.xml" />
+        <exclude domain="sharedpref" path="ezch_yandex_home.xml" />
     <exclude domain="sharedpref" path="weather_access.xml" />
         <exclude domain="sharedpref" path="home_setup.xml" />
+        <exclude domain="sharedpref" path="eva_power.xml" />
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

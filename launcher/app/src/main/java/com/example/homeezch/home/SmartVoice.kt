@@ -13,6 +13,7 @@ import com.example.homeezch.ai.SmartHomeExecutor
  */
 object SmartVoice {
     suspend fun execute(context: Context, action: Action.Home): Outcome {
+        if (action.op == "routine") return arrive(context)
         if (action.op == "panel") {
             context.startActivity(Intent(context, com.example.homeezch.ai.SmartHomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return Outcome(true, "Открываю «Умный дом»")
@@ -38,7 +39,12 @@ object SmartVoice {
                 return if (t != null) Outcome(true, "Дома ${t.reading ?: "${t.temperature?.toInt()}°"}") else Outcome(false, "Датчик температуры не найден")
             }
         }
-        val targets = SmartMatcher.find(action.target, devices)
+        // R53: «включи кондиционер» matched by type in two ecosystems (Яндекс + own IR remote) must not fire twice —
+        // the cloud device wins; an IR remote is used by type only when it is the only match (by name it always wins).
+        val targets = SmartMatcher.find(action.target, devices).let { found ->
+            val ir = found.filter { it.provider == "ir" }; val other = found.filter { it.provider != "ir" }
+            if (ir.isNotEmpty() && other.isNotEmpty()) other else found
+        }
         if (targets.isEmpty()) return Outcome(false, "Не нашла «${action.target}» в умном доме")
         var ok = 0
         for (d in targets.take(8)) {
@@ -61,6 +67,22 @@ object SmartVoice {
             else -> "Готово"
         }
         return if (ok == 0) Outcome(false, "$what: устройство не подтвердило команду") else Outcome(true, done)
+    }
+    /** Claude r52: «Ева, я дома». Every step is optional and never stops the others: the smart-home scene whose name
+     *  says «дома»/«пришёл» (if a home is connected), the weather, then the app watched last. */
+    private suspend fun arrive(context: Context): Outcome {
+        val said = mutableListOf("С возвращением!")
+        if (SmartHub.anyConnected(context)) {
+            val scene = runCatching { SmartHub.devices(context) }.getOrNull().orEmpty().filter { it.type == DeviceType.SCENE }
+                .firstOrNull { d -> d.name.lowercase().let { it.contains("дома") || it.contains("приход") || it.contains("пришел") || it.contains("пришёл") } }
+            if (scene != null) said += if (runCatching { SmartHub.send(context, scene, DeviceCommand.Power(true)) }.getOrDefault(false))
+                "Включила «${scene.name}»." else "Сценарий «${scene.name}» не ответил."
+        }
+        val weather = runCatching { com.example.homeezch.ai.spokenWeather(context) }.getOrNull()
+        if (weather?.accepted == true) said += weather.message
+        val opened = runCatching { com.example.homeezch.ai.AndroidActionExecutor(context).execute(Action.LastApp) }.getOrNull()
+        if (opened?.accepted == true) said += opened.message
+        return Outcome(true, said.joinToString(" "))
     }
     private fun result(ok: Boolean, text: String) = Outcome(ok, if (ok) text else "Не удалось выполнить")
 }

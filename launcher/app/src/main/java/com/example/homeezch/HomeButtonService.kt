@@ -49,6 +49,24 @@ class HomeButtonService : AccessibilityService() {
     private var longPressSent = false
     private var lastRedirectAt = 0L
     private var startupAttempts = 0
+    private val homeWindows = mutableMapOf<String, Pair<Long, Set<String>>>()
+    private var lastIgnoredWindow: String? = null
+
+    private fun isStockHomeWindow(packageName: String, windowClass: String?): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        val cached = homeWindows[packageName]
+        val classes = if (cached != null && now - cached.first < 60_000L) cached.second else {
+            val resolved = runCatching {
+                packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_HOME).setPackage(packageName), 0)
+                    .flatMap { info -> listOfNotNull(info.activityInfo?.name, info.activityInfo?.targetActivity) }
+                    .toSet()
+            }.getOrDefault(emptySet())
+            if (resolved.isNotEmpty()) homeWindows[packageName] = now to resolved
+            resolved
+        }
+        return isResolvedHomeWindow(packageName, windowClass, classes)
+    }
     private val wake = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) { scheduleStartup() }
     }
@@ -121,6 +139,16 @@ class HomeButtonService : AccessibilityService() {
                     ?.activityInfo?.let { it.packageName == eventPackage && it.name == event.className?.toString() } == true
             }.getOrDefault(false)
         if (eventPackage !in stockHomePackages && !recoveryHome) return
+        // Google TV's quick settings can belong to the HOME package too. Never
+        // dismiss them just because their package is a stock launcher.
+        if (!recoveryHome && !isStockHomeWindow(eventPackage, event.className?.toString())) {
+            val window = "$eventPackage/${event.className}"
+            if (window != lastIgnoredWindow) {
+                lastIgnoredWindow = window
+                EzchDiag.log("HOME_SKIP", "системное окно оставлено открытым: $window")
+            }
+            return
+        }
         if (HomeRole.isHome(this)) return // Actual HOME handler is EZCH, no redirect loop.
         // ROLE_HOME alone is not sufficient: some Android TV firmware holds it for
         // EZCH while forwarding HOME to com.google.android.tvlauncher.
@@ -128,6 +156,7 @@ class HomeButtonService : AccessibilityService() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastRedirectAt < 1800L) return
         lastRedirectAt = now
+        EzchDiag.log("HOME_REDIRECT", "системный HOME: $eventPackage/${event.className}")
         openLauncher(false)
     }
 
@@ -147,6 +176,8 @@ class HomeButtonService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // R52: see EvaAppService.onKeyEvent — pause hands-free while the remote is used in any HOME window.
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode !in VOICE_KEYS) com.example.homeezch.ai.EvaEngine.pauseForInput()
         if (RemoteButtons.learning) { remotePress.reset(); return false }
         VolumeHold.onKeyEvent(this, event)
         if (remotePress.handle(this, event, defaults = false)) return true

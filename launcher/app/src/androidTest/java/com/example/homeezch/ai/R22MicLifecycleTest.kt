@@ -27,7 +27,7 @@ class R22MicLifecycleTest {
         try {
             ins.runOnMainSync {
                 input=AndroidVoiceRecognizer(ctx,{ text ->
-                    if (text=="Говорите…") { ready.put(SystemClock.elapsedRealtime()-started); latch.countDown() }
+                    if (text.startsWith("Говорите")) { ready.put(SystemClock.elapsedRealtime()-started); latch.countDown() }
                     else if (!text.endsWith("…")) { statuses.put(text); latch.countDown() }
                 },{},forceNetwork=true)
             }

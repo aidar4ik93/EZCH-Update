@@ -79,10 +79,10 @@ class AndroidActionExecutor(private val context: Context,
                     if (pkg != null && YouTubePlay.searchInApp(context, pkg, action.query)) Outcome(true, "Ищу «${action.query}»")
                     else Outcome(false, "Чтобы Ева сама искала и включала фильмы внутри приложений, включите «Ai EvA — управление приложениями» в Специальных возможностях (Настройки Евы → кнопка «Управление приложениями»)")
                 }
-                // R27: «очисти память / мусор» works without the accessibility service — same as the optimizer's button.
-                Action.ClearCache -> Outcome(true, kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching { com.example.homeezch.QuickCleanup.run(context) }.getOrElse { "Не удалось освободить память" }
-                })
+                // Claude r57: real deep clean (Eva's memory + force stop of background apps through App info + cached processes).
+                Action.ClearCache -> Outcome(true, runCatching {
+                    DeepClean.message(DeepClean.run(context) { EvaAppService.current?.panelStatus(it) })
+                }.getOrElse { "Не удалось освободить память" })
                 is Action.PlayChannel, is Action.Choose, is Action.Quality, Action.Watch ->
                     EvaAppService.current?.execute(action) ?: Outcome(false, "Включите «Ai EvA — управление приложениями» в специальных возможностях Android")
                 Action.Settings -> {
@@ -118,8 +118,7 @@ class AndroidActionExecutor(private val context: Context,
                     Outcome(true, "Открываю ${last.label}")
                 }
                 Action.PlayGame -> EvaTvSkills.riddle()
-                is Action.Power -> EvaAppService.current?.power(action.op)
-                    ?: Outcome(false, "Чтобы перезагружать телевизор голосом, включите службу «Ai EvA» в Специальных возможностях (Настройки Евы → «Управление приложениями»)")
+                is Action.Power -> com.example.homeezch.ai.power.PowerController(context).execute(action)
                 is Action.Home -> com.example.homeezch.home.SmartVoice.execute(context, action)
                 is Action.Volume -> volume(action)
                 is Action.Media -> AndroidMediaAdapter(context).setPlaying(action.play)

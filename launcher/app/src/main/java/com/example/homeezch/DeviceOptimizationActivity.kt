@@ -55,6 +55,8 @@ class DeviceOptimizationActivity : ComponentActivity() {
         var selected by remember { mutableStateOf(setOf<String>()) }
         var cleanup by remember { mutableStateOf(true) }
         var animations by remember { mutableStateOf(true) }
+        var adbReady by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { adbReady = withContext(Dispatchers.IO) { LocalAdb.reachable() } }
         val scope = rememberCoroutineScope()
         LaunchedEffect(Unit) {
             runCatching { withContext(Dispatchers.IO) { HardwareInspection.inspect(this@DeviceOptimizationActivity) } }
@@ -74,7 +76,7 @@ class DeviceOptimizationActivity : ComponentActivity() {
                 Button(enabled = !busy, onClick = {
                     busy = true; status = "Освобождаю память…"
                     scope.launch {
-                        status = runCatching { withContext(Dispatchers.IO) { QuickCleanup.run(this@DeviceOptimizationActivity) } }
+                        status = runCatching { com.example.homeezch.ai.DeepClean.message(com.example.homeezch.ai.DeepClean.run(this@DeviceOptimizationActivity) { status = it }) }
                             .getOrElse { "Не удалось очистить: ${it.javaClass.simpleName}" }
                         busy = false
                     }
@@ -127,6 +129,40 @@ class DeviceOptimizationActivity : ComponentActivity() {
                         busy = false
                     }
                 }) { Text("Сохранить команды чистки и отмены") }
+                // Claude r58: with the box's own ADB (network debugging) the same commands run right here, no computer.
+                if (adbReady) Button(enabled = !busy && (selected.isNotEmpty() || cleanup), onClick = {
+                    busy = true; status = "Выполняю… Если появится «Разрешить отладку?» — нажмите «Разрешить»"
+                    scope.launch {
+                        status = runCatching { withContext(Dispatchers.IO) {
+                            val saved = HardwareInspection.export(this@DeviceOptimizationActivity, report,
+                                report.optional.filter { it.item.packageName in selected }, cleanup, cleanup && animations)
+                            val names = saved.lines().map { it.substringAfterLast('/') }
+                                .filter { (it.contains("_disable.sh") || it.contains("_cleanup.sh")) && !it.contains("restore") }
+                            val out = LocalAdb.shell(this@DeviceOptimizationActivity, names.joinToString("; ") { "sh /sdcard/Download/EZCH/$it" })
+                            if (out == null) "Отладка по сети не ответила: ${LocalAdb.lastError ?: "нет разрешения"}"
+                            else "Готово. Команды отмены сохранены в Download/EZCH.\n" + out.trim().takeLast(600)
+                        } }.getOrElse { "Не удалось выполнить: ${it.javaClass.simpleName}" }
+                        busy = false
+                    }
+                }) { Text("Выполнить сейчас (без компьютера)") }
+
+                Text("Главный экран", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 16.dp))
+                Text(if (HomeRole.isHome(this@DeviceOptimizationActivity)) "Кнопка «Домой» открывает EZCH." else
+                    "Кнопка «Домой» сначала открывает экран прошивки, потом EZCH.")
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+                    Button(enabled = !busy && adbReady, onClick = {
+                        busy = true; status = "Если появится «Разрешить отладку?» — нажмите «Разрешить»"
+                        scope.launch {
+                            status = withContext(Dispatchers.IO) { HomeTakeover.apply(this@DeviceOptimizationActivity) } ?: "Отладка по сети не ответила"
+                            busy = false
+                        }
+                    }) { Text("Только EZCH на «Домой»") }
+                    Button(enabled = !busy && adbReady, onClick = {
+                        busy = true
+                        scope.launch { status = withContext(Dispatchers.IO) { HomeTakeover.restore(this@DeviceOptimizationActivity) }; busy = false }
+                    }) { Text("Вернуть Google TV") }
+                }
+                if (!adbReady) Text("Чтобы EZCH делал это без компьютера, включите «Отладка по сети» (ADB) в настройках для разработчиков.")
             }
         }
     }

@@ -53,9 +53,10 @@ internal object EvaTts {
             }
             created.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { if (id != WARMUP) { VoiceTiming.mark(VoiceTiming.Phase.TTS_STARTED); listener?.onStart(id) } }
-                override fun onDone(id: String?) { if (id != WARMUP) listener?.onDone(id) }
+                override fun onDone(id: String?) { if (id != WARMUP) { utteranceEnded(); listener?.onDone(id) } }
+                override fun onStop(id: String?, interrupted: Boolean) { if (id != WARMUP) utteranceEnded() }
                 @Deprecated("Platform callback") override fun onError(id: String?) {
-                    if (id != WARMUP) { com.example.homeezch.EzchDiag.log("TTS:ОШИБКА", "фраза $id не произнесена"); @Suppress("DEPRECATION") listener?.onError(id) }
+                    if (id != WARMUP) { utteranceEnded(); com.example.homeezch.EzchDiag.log("TTS:ОШИБКА", "фраза $id не произнесена"); @Suppress("DEPRECATION") listener?.onError(id) }
                 }
                 override fun onBeginSynthesis(id: String?, sampleRateInHz: Int, audioFormat: Int, channelCount: Int) {
                     if (id != WARMUP) listener?.onBeginSynthesis(id, sampleRateInHz, audioFormat, channelCount)
@@ -71,12 +72,23 @@ internal object EvaTts {
         val e = engine ?: return@task
         if (!ready || phrases.isEmpty() || !still()) return@task
         VoiceTiming.mark(VoiceTiming.Phase.TTS_REQUESTED)
+        val spoken = phrases.size
+        if (!append) pending.set(0)
+        pending.addAndGet(spoken); pendingSince = android.os.SystemClock.elapsedRealtime()
         phrases.forEachIndexed { i, phrase ->
+            if (!still()) { utteranceEnded(); return@forEachIndexed }
             if (still()) e.speak(phrase, if (i == 0 && !append) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "$utterancePrefix-$i")
         }
     }
 
-    fun stop(then: () -> Unit = {}) = task { runCatching { engine?.stop() }; then() }
+    /** R52: while Eva speaks, the hands-free listener must not hear her own voice («…Ева…» in an answer).
+     *  R52.2: a counter kept by the engine's own callbacks — no binder call per audio buffer (the wake loop asks
+     *  this ~5 times a second; GPT's idle measurement showed the extra CPU). Safety cap: 90 s. */
+    private val pending = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var pendingSince = 0L
+    fun speaking(): Boolean = pending.get() > 0 && android.os.SystemClock.elapsedRealtime() - pendingSince < 90_000
+    private fun utteranceEnded() { if (pending.decrementAndGet() < 0) pending.set(0) }
+    fun stop(then: () -> Unit = {}) = task { runCatching { engine?.stop() }; pending.set(0); then() }
 
     /** Re-applies voice and tempo after the owner changed them in EVA settings. */
     fun refresh(context: Context, then: () -> Unit = {}) {

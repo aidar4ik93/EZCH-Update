@@ -53,12 +53,20 @@ internal object RemoteButtons {
             else -> null
         }
     }
-    fun execute(context: Context, action: RemoteAction) {
+    /** R52: both EZCH accessibility services see every key; only the first to claim a press may execute it. */
+    private val claimed = ArrayDeque<Triple<Long, Int, Int>>()
+    @Synchronized fun claim(downTime: Long, keyCode: Int, deviceId: Int): Boolean {
+        val key = Triple(downTime, keyCode, deviceId)
+        if (key in claimed) return false
+        claimed.addLast(key); while (claimed.size > 32) claimed.removeFirst()
+        return true
+    }
+    fun execute(context: Context, action: RemoteAction, press: Long? = null) {
         try { when (action) {
             RemoteAction.SETTINGS -> SettingsRouter.settings(context)
             RemoteAction.APPS -> SettingsRouter.open(context, listOf(Intent(android.provider.Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)))
             // R27: over the current app, not by bringing the desktop forward (EvaEntry decides where).
-            RemoteAction.EVA -> com.example.homeezch.ai.EvaEntry.open(context)
+            RemoteAction.EVA -> com.example.homeezch.ai.EvaEntry.open(context, com.example.homeezch.ai.ActivationGate.Source.REMOTE_BUTTON, press)
             else -> {
                 val pm = context.packageManager
                 for (pkg in action.packages) {
@@ -98,7 +106,8 @@ internal class RemoteButtonPress {
             val press = pending ?: return false
             pending = null
             if (press.first != id) return false
-            if (!event.isCanceled && !RemoteButtons.learning) RemoteButtons.execute(context, press.second)
+            if (!event.isCanceled && !RemoteButtons.learning && RemoteButtons.claim(event.downTime, event.keyCode, event.deviceId))
+                RemoteButtons.execute(context, press.second, event.downTime)
             return true
         }
         return false

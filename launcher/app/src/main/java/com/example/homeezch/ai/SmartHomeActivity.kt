@@ -1,6 +1,7 @@
 package com.example.homeezch.ai
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -41,6 +42,12 @@ import androidx.lifecycle.lifecycleScope
 import com.example.homeezch.home.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val Bg = Color(0xFF060C18)
 private val Card = Color(0xFF111E33)
@@ -117,7 +124,7 @@ private fun SmartHomeScreen(onClose: () -> Unit) {
                     else -> act(d, DeviceCommand.Power(d.on != true))
                 }
             }, onOpen = { open = it })
-            1 -> RemotesTab(devices.filter { it.type in setOf(DeviceType.REMOTE, DeviceType.TV, DeviceType.AC) && (it.buttons.isNotEmpty() || it.infrared != null || it.provider == "yandex") }) { open = it }
+            1 -> RemotesTab(devices.filter { it.type in setOf(DeviceType.REMOTE, DeviceType.TV, DeviceType.AC) && (it.buttons.isNotEmpty() || it.infrared != null || it.provider == "yandex") || it.provider == "ir" }) { open = it }
             2 -> ConnectionsTab { reload() }
             else -> CinemaTab(devices.filter { it.type == DeviceType.LIGHT })
         }
@@ -148,7 +155,7 @@ private fun stateText(d: SmartDevice): String = when {
     d.buttons.isNotEmpty() -> "кнопок: ${d.buttons.size}"
     else -> d.reading ?: "открыть"
 }
-private fun providerLabel(p: String) = when (p) { "yandex" -> "Яндекс"; "tuya" -> "Tuya"; else -> "HA" }
+private fun providerLabel(p: String) = when (p) { "yandex" -> "Яндекс"; "tuya" -> "Tuya"; "ir" -> "ИК"; else -> "HA" }
 
 @Composable
 private fun DeviceTile(d: SmartDevice, onClick: () -> Unit, onLong: () -> Unit) {
@@ -198,6 +205,21 @@ private fun RemotesTab(remotes: List<SmartDevice>, onOpen: (SmartDevice) -> Unit
         Text("Универсальные ИК-пульты: телевизоры, кондиционеры, ресиверы, вентиляторы — всё, что управляется инфракрасным пультом.",
             color = Muted, fontSize = 13.sp)
         Spacer(Modifier.height(10.dp))
+        // R53: EVA Universal IR Manager — own controller in the home network (BroadLink RM4C mini …), no cloud.
+        val ctx = LocalContext.current
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.width(852.dp).background(Brush.linearGradient(listOf(Color(0xFF9F8CFF).copy(alpha = .30f), Card)), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFF9F8CFF).copy(alpha = .6f), RoundedCornerShape(16.dp)).padding(14.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Универсальный ИК-пульт EVA", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Свой контроллер в домашней сети (BroadLink RM4C mini / BestCon): поиск, обучение кнопок с родного пульта, сценарии и голос — без облака.",
+                    color = Color(0xFFC9D6EA), fontSize = 12.sp)
+            }
+            Chip("Открыть", Color(0xFF9F8CFF)) {
+                ctx.startActivity(android.content.Intent(ctx, com.example.homeezch.ir.IrManagerActivity::class.java))
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ProtocolCard("Яндекс Пульт", "Протокол: Яндекс ИК через «Дом с Алисой». Пульты добавляются в приложении «Дом с Алисой» → Устройство → Пульт. Подходят все версии Яндекс Пульта.",
                 Color(0xFFFF9F43), YandexProvider.connected(LocalContext.current))
@@ -205,7 +227,7 @@ private fun RemotesTab(remotes: List<SmartDevice>, onOpen: (SmartDevice) -> Unit
                 Color(0xFF2EE6C5), TuyaProvider.connected(LocalContext.current))
         }
         Spacer(Modifier.height(14.dp))
-        if (remotes.isEmpty()) Hint("Пульты не найдены. Подключите Яндекс или Tuya на вкладке «Подключения».")
+        if (remotes.isEmpty()) Hint("Пультов пока нет. Создайте свой в «Универсальном ИК-пульте» или подключите Яндекс / Tuya на вкладке «Подключения».")
         remotes.chunked(4).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = 14.dp)) {
                 row.forEach { d -> Box(Modifier.width(220.dp)) { DeviceTile(d, onClick = { onOpen(d) }, onLong = { onOpen(d) }) } }
@@ -299,47 +321,12 @@ private fun ConnectionsTab(onChanged: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
-    var yandexCode by remember { mutableStateOf<YandexProvider.DeviceCode?>(null) }
     var message by remember { mutableStateOf("") }
     var form by remember { mutableStateOf<String?>(null) }
     key(revision) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (message.isNotBlank()) Text(message, color = Color(0xFFFFC94D), fontSize = 14.sp)
-            ConnectionCard("🟡 Яндекс · Дом с Алисой", "Самый простой путь: свет и розетки Яндекса, Яндекс Пульт (ИК), а также устройства Xiaomi и Tuya/Smart Life, привязанные в приложении «Дом с Алисой».",
-                Color(0xFFFFCC00), YandexProvider.connected(context)) {
-                if (YandexProvider.connected(context)) {
-                    Chip("Отключить", Color(0xFFFF6F6F)) { YandexProvider.disconnect(context); revision++; onChanged() }
-                } else {
-                    Chip("Войти по коду на экране", Color(0xFFFFCC00)) {
-                        scope.launch {
-                            YandexProvider.startSignIn(context).onSuccess { code ->
-                                yandexCode = code; message = ""
-                                val until = System.currentTimeMillis() + code.expiresIn * 1000L
-                                while (yandexCode === code && System.currentTimeMillis() < until) {
-                                    delay(code.interval * 1000L)
-                                    val r = YandexProvider.pollToken(context, code)
-                                    if (r.isFailure) { message = r.exceptionOrNull()?.message.orEmpty(); yandexCode = null; break }
-                                    if (r.getOrNull() != null) { yandexCode = null; message = "Яндекс подключён"; revision++; onChanged(); break }
-                                }
-                            }.onFailure { message = (it.message ?: "Ошибка") + ". Можно вставить токен вручную или задать приложение OAuth." }
-                        }
-                    }
-                    Chip("Вставить токен", Color(0xFF5AA9FF)) { form = "yandex-token" }
-                    Chip("Приложение OAuth", Color(0xFF3A5478)) { form = "yandex-app" }
-                }
-            }
-            yandexCode?.let { c ->
-                Row(Modifier.background(Color.White, RoundedCornerShape(16.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    QrBox(c.url, Modifier.size(180.dp))
-                    Spacer(Modifier.width(20.dp))
-                    Column {
-                        Text("Откройте на телефоне ${c.url}", color = Color.Black, fontSize = 16.sp)
-                        Text("и введите код:", color = Color.Black, fontSize = 16.sp)
-                        Text(c.userCode, color = Color.Black, fontSize = 42.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                        Text("Ждём подтверждения…", color = Color.DarkGray, fontSize = 13.sp)
-                    }
-                }
-            }
+            YandexConnection(onChanged)
             ConnectionCard("🟢 Tuya · Smart Life", "Для домов без Яндекса: розетки, лампы, пылесосы и ИК-хабы Tuya. Нужны ключи облачного проекта Tuya (iot.tuya.com) и UID аккаунта Smart Life. Длинные ключи удобно вводить с телефона: Настройки → «Телефон как пульт» → «Напечатать на ТВ».",
                 Color(0xFF2EE6C5), TuyaProvider.connected(context)) {
                 Chip(if (TuyaProvider.connected(context)) "Изменить ключи" else "Подключить", Color(0xFF2EE6C5)) { form = "tuya" }
@@ -370,6 +357,103 @@ private fun ConnectionCard(title: String, text: String, color: Color, connected:
     }
 }
 
+/** One cancellable pairing job per visible connection card; no credentials are entered on the TV. */
+@Composable
+private fun YandexConnection(onChanged: () -> Unit) {
+    val context = LocalContext.current
+    var attempt by remember { mutableIntStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf<YandexPairing?>(null) }
+    var status by remember { mutableStateOf("") }
+    var seconds by remember { mutableIntStateOf(0) }
+    var deadline by remember { mutableLongStateOf(0L) }
+    var connected by remember { mutableStateOf(YandexProvider.connected(context)) }
+    DisposableEffect(context) {
+        val stop = YandexProvider.observeConnection(context) { connected = YandexProvider.connected(context) }
+        onDispose { stop() }
+    }
+    LaunchedEffect(attempt) {
+        if (attempt == 0) return@LaunchedEffect
+        busy = true
+        var pair: YandexPairing? = null
+        try {
+            status = "Получаем код подключения…"
+            pair = YandexProvider.startSignIn(context)
+            code = pair
+            deadline = SystemClock.elapsedRealtime() + pair.expiresIn * 1000L
+            status = "Ждём подтверждения на телефоне…"
+            var interval = pair.interval
+            while (SystemClock.elapsedRealtime() < deadline) {
+                delay(minOf(interval * 1000L, (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1)))
+                if (SystemClock.elapsedRealtime() >= deadline) break
+                try {
+                    val result = YandexProvider.poll(pair)
+                    currentCoroutineContext().ensureActive()
+                    if (SystemClock.elapsedRealtime() >= deadline) break
+                    result.grant?.let {
+                        YandexProvider.accept(context, it)
+                        connected = true
+                        status = "Дом с Алисой подключён. Загружаем устройства…"
+                        onChanged()
+                        return@LaunchedEffect
+                    }
+                    interval = result.retryAfter
+                    status = "Ждём подтверждения на телефоне…"
+                } catch (e: YandexAuthError) {
+                    if (!e.retryable) throw e
+                    interval = maxOf(interval, 5)
+                    status = e.message.orEmpty()
+                }
+            }
+            status = "Срок действия кода истёк. Получите новый код."
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { status = (e as? YandexAuthError)?.message ?: "Не удалось получить код. Проверьте интернет и попробуйте ещё раз." }
+        finally {
+            code = null
+            busy = false
+            pair?.let { withContext(NonCancellable) { withTimeoutOrNull(2500) { runCatching { YandexProvider.cancel(it) } } } }
+        }
+    }
+    LaunchedEffect(code) {
+        while (code != null) {
+            seconds = ((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0) / 1000).toInt()
+            delay(1000)
+        }
+    }
+    ConnectionCard("🟡 Яндекс · Дом с Алисой", "Подключите аккаунт с телефона. Свет, розетки, Яндекс Пульт и устройства Xiaomi/Tuya, связанные с Алисой, появятся здесь.", Color(0xFFFFCC00), connected) {
+        when {
+            connected -> Chip("Отключить", Color(0xFFFF6F6F)) {
+                attempt = 0; YandexProvider.disconnect(context); connected = false; status = "Яндекс отключён"; onChanged()
+            }
+            busy -> Chip("Отмена", Color(0xFF3A5478)) { attempt = 0; status = "Подключение отменено" }
+            else -> Chip("Подключить по QR-коду", Color(0xFFFFCC00)) { if (!busy) { busy = true; attempt++ } }
+        }
+    }
+    code?.let { pair ->
+        val cancelFocus = remember { FocusRequester() }
+        Dialog(onDismissRequest = { attempt = 0; status = "Подключение отменено" }) {
+            Column(Modifier.widthIn(max = 760.dp).background(Card, RoundedCornerShape(20.dp)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Подключить Дом с Алисой", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    QrBox(pair.url, Modifier.size(186.dp).padding(16.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("1. Сканируйте QR-код телефоном", color = Color.Black, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("2. Введите код на странице Яндекса", color = Color.DarkGray, fontSize = 14.sp)
+                        Text(pair.userCode, color = Color.Black, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text("3. Подтвердите доступ к умному дому", color = Color.DarkGray, fontSize = 14.sp)
+                        Text(pair.url, color = Color.DarkGray, fontSize = 12.sp)
+                    }
+                }
+                Text("$status · Осталось $seconds с", color = Color(0xFFFFC94D), fontSize = 13.sp)
+                Chip("Отмена", Color(0xFF3A5478), modifier = Modifier.focusRequester(cancelFocus)) { attempt = 0; status = "Подключение отменено" }
+            }
+        }
+        LaunchedEffect(pair) { delay(100); runCatching { cancelFocus.requestFocus() } }
+    }
+    if (status.isNotBlank()) Text(status, color = Color(0xFFFFC94D), fontSize = 14.sp)
+}
+
 @Composable
 private fun ConnectForm(kind: String, onDone: (String?) -> Unit) {
     val context = LocalContext.current
@@ -382,7 +466,7 @@ private fun ConnectForm(kind: String, onDone: (String?) -> Unit) {
     var busy by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = { onDone(null) }) {
         Column(Modifier.widthIn(max = 640.dp).background(Card, RoundedCornerShape(20.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(when (kind) { "tuya" -> "Tuya · Smart Life"; "ha" -> "Home Assistant"; "yandex-app" -> "Приложение Яндекс OAuth"; else -> "Токен Яндекса" },
+            Text(when (kind) { "tuya" -> "Tuya · Smart Life"; "ha" -> "Home Assistant"; else -> "Подключение" },
                 color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             when (kind) {
                 "tuya" -> {
@@ -398,15 +482,6 @@ private fun ConnectForm(kind: String, onDone: (String?) -> Unit) {
                     OutlinedTextField(b, { b = it }, label = { Text("Долгосрочный токен") }, singleLine = true)
                     Chip("🔍 Найти в сети", Color(0xFF41BDF5)) { scope.launch { SmartHomeConnection.discover()?.let { a = it } } }
                 }
-                "yandex-app" -> {
-                    OutlinedTextField(a, { a = it }, label = { Text("Client ID") }, singleLine = true)
-                    OutlinedTextField(b, { b = it }, label = { Text("Client Secret") }, singleLine = true)
-                    Text("oauth.yandex.ru → Создать приложение → доступы «Умный дом: просмотр и управление», вход по коду на устройстве.", color = Muted, fontSize = 12.sp)
-                }
-                else -> {
-                    OutlinedTextField(a, { a = it }, label = { Text("OAuth-токен") }, singleLine = true)
-                    Text("Удобно отправить с телефона: Настройки → «Телефон как пульт» → «Напечатать на ТВ».", color = Muted, fontSize = 12.sp)
-                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Chip(if (busy) "Проверяю…" else "Сохранить", Color(0xFF7BE07B)) {
@@ -416,8 +491,6 @@ private fun ConnectForm(kind: String, onDone: (String?) -> Unit) {
                             scope.launch { val r = TuyaProvider.test(context); busy = false; onDone(r) } }
                         "ha" -> if (SmartHomeConnection.validUrl(a.trim())) { SmartHomeConnection.save(context, a.trim(), b.trim().ifBlank { SmartHomeConnection.token(context) }); onDone("Home Assistant сохранён") }
                             else onDone("Адрес должен быть https:// или http:// домашней сети")
-                        "yandex-app" -> { YandexProvider.setApp(context, a, b); onDone("Приложение OAuth сохранено — теперь «Войти по коду»") }
-                        else -> { YandexProvider.setToken(context, a); onDone(if (YandexProvider.connected(context)) "Токен сохранён" else "Токен слишком короткий") }
                     }
                 }
                 Chip("Отмена", Color(0xFF3A5478)) { onDone(null) }

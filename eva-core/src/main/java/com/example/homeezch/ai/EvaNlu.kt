@@ -7,7 +7,7 @@ package com.example.homeezch.ai
  */
 object EvaNlu {
     val SETTINGS_SECTIONS = setOf("wifi", "bluetooth", "display", "sound", "storage", "apps", "general")
-    val HOME_OPS = setOf("on", "off", "toggle", "brightness", "temperature", "set_temp", "scene", "status", "lock", "unlock", "panel")
+    val HOME_OPS = setOf("on", "off", "toggle", "brightness", "temperature", "set_temp", "scene", "status", "lock", "unlock", "panel", "routine")
 
     private val ordinal = mapOf("один" to 1, "одна" to 1, "первый" to 1, "первого" to 1, "1" to 1,
         "два" to 2, "второй" to 2, "второго" to 2, "2" to 2, "три" to 3, "третий" to 3, "третьего" to 3, "3" to 3,
@@ -124,6 +124,9 @@ object EvaNlu {
     }
 
     private fun smartHome(t: String): Resolution? {
+        // Claude r52: «Ева, я дома» — one phrase for the arrival routine (scene «я дома» if there is one, weather, last app).
+        if (any(t, "^(?:ева )?(?:ну )?(?:вот )?я(?: и)?(?: уже)? дома$", "^(?:ева )?я (?:уже )?(?:пришел|пришла|вернулся|вернулась)(?: домой)?$"))
+            return plan(Action.Home("routine", "дома"))
         val light = "(?:свет|светильник|лампу|лампы|лампа|люстру|люстра|освещение|подсветку|подсветка|торшер|бра)"
         val device = "(?:свет|светильник|лампу|люстру|освещение|подсветку|торшер|розетку|розетка|кондиционер|обогреватель|чайник|увлажнитель|вентилятор|бойлер|кофеварку|робот[а-я]* пылесос|пылесос)"
         Regex("^(?:включи|зажги|вруби|включить) ($device)(?: (?:в|на) (.+))?$").matchEntire(t)?.let { m ->

@@ -13,6 +13,8 @@ object RecentApps {
         val list = (listOf(component) + prefs(context).getString("list", "").orEmpty().split('\n').filter { it.isNotBlank() && it != component }).take(10)
         prefs(context).edit().putString("list", list.joinToString("\n")).apply()
     }
+    fun list(context: Context): List<String> =
+        prefs(context).getString("list", "").orEmpty().split('\n').filter { it.isNotBlank() }
     fun last(context: Context, installed: List<AppTarget>): AppTarget? =
         prefs(context).getString("list", "").orEmpty().split('\n').firstNotNullOfOrNull { c -> installed.firstOrNull { it.component == c } }
 }

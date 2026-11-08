@@ -41,6 +41,6 @@ object AssistantTakeover {
     }
 
     fun openEva(context: Context) {
-        EvaEntry.open(context)
+        EvaEntry.open(context, ActivationGate.Source.ASSISTANT_TAKEOVER)
     }
 }

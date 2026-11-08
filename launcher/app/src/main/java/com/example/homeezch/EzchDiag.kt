@@ -33,6 +33,7 @@ import java.util.Locale
 object EzchDiag {
     private const val MAX_BYTES = 512 * 1024
     private val time = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
+    private fun timestamp(): String = synchronized(time) { time.format(Date()) }
     private val thread by lazy { HandlerThread("ezch-diag").apply { start() } }
     private val handler by lazy { Handler(thread.looper) }
     @Volatile private var dir: File? = null
@@ -54,7 +55,7 @@ object EzchDiag {
             runCatching {
                 writeNow("CRASH", "поток ${t.name}: ${e.stackTraceToString().take(6000)}")
                 appContext.getSharedPreferences("ezch_diag", Context.MODE_PRIVATE).edit()
-                    .putString("last_crash", "${time.format(Date())} ${e.javaClass.simpleName}: ${e.message.orEmpty().take(300)}")
+                    .putString("last_crash", "${timestamp()} ${e.javaClass.simpleName}: ${e.message.orEmpty().take(300)}")
                     .putBoolean("export_pending", true).commit()
             }
             previous?.uncaughtException(t, e)
@@ -62,6 +63,36 @@ object EzchDiag {
         val crashed = appContext.getSharedPreferences("ezch_diag", Context.MODE_PRIVATE).getBoolean("export_pending", false)
         log("START", "процесс ${Process.myPid()} · ${versionLine(appContext)} · вход: $from" + if (crashed) " · прошлый запуск закончился падением" else "")
         handler.postDelayed({
+            if (Build.VERSION.SDK_INT >= 30) runCatching {
+                val manager = appContext.getSystemService(ActivityManager::class.java)
+                var anrCaptured = false
+                manager.getHistoricalProcessExitReasons(appContext.packageName, 0, 8).forEach { exit ->
+                    // Already on the diagnostic worker: append before exporting
+                    // this startup's report, rather than queuing behind it.
+                    writeNow("PROCESS_EXIT", "pid=${exit.pid} process=${exit.processName} time=${exit.timestamp} " +
+                        "reason=${exit.reason} status=${exit.status} importance=${exit.importance} " +
+                        "pssKB=${exit.pss} rssKB=${exit.rss} description=${exit.description.orEmpty().take(300)}")
+                    if (!anrCaptured && exit.reason == android.app.ApplicationExitInfo.REASON_ANR) {
+                        anrCaptured = true
+                        runCatching {
+                            val trace = exit.traceInputStream?.bufferedReader()?.use { reader ->
+                                val text = StringBuilder()
+                                val buffer = CharArray(4096)
+                                while (text.length < 65536) {
+                                    val count = reader.read(buffer, 0, minOf(buffer.size, 65536 - text.length))
+                                    if (count < 0) break
+                                    text.append(buffer, 0, count)
+                                }
+                                text.toString().substringAfter("\"main\"", "")
+                                    .substringBefore("\n\n").take(16000)
+                            }
+                            writeNow("ANR_TRACE", "pid=${exit.pid}: " +
+                                (trace?.takeIf { it.isNotBlank() }?.let { "\"main\"$it" }
+                                    ?: "система не сохранила стек главного потока"))
+                        }.onFailure { writeNow("ANR_TRACE", "Стек недоступен: ${it.javaClass.simpleName}") }
+                    }
+                }
+            }.onFailure { writeNow("PROCESS_EXIT", "История завершений недоступна: ${it.javaClass.simpleName}") }
             runCatching { log("SNAPSHOT", "\n" + snapshot(appContext)) }
             export(appContext, "автоматически при запуске")
             appContext.getSharedPreferences("ezch_diag", Context.MODE_PRIVATE).edit().putBoolean("export_pending", false).apply()
@@ -69,7 +100,7 @@ object EzchDiag {
     }
 
     fun log(tag: String, message: String) {
-        val line = "${time.format(Date())} [$tag] $message"
+        val line = "${timestamp()} [$tag] $message"
         android.util.Log.i("EzchDiag", line.take(3000))
         if (dir == null) return
         runCatching { handler.post { append(line) } }
@@ -78,7 +109,7 @@ object EzchDiag {
     fun error(tag: String, message: String, error: Throwable? = null) =
         log("$tag:ОШИБКА", message + (error?.let { " — ${it.javaClass.simpleName}: ${it.message.orEmpty().take(400)}\n" + it.stackTraceToString().lines().take(8).joinToString("\n") } ?: ""))
 
-    private fun writeNow(tag: String, message: String) = append("${time.format(Date())} [$tag] $message")
+    private fun writeNow(tag: String, message: String) = append("${timestamp()} [$tag] $message")
 
     @Synchronized private fun append(line: String) {
         val d = dir ?: return

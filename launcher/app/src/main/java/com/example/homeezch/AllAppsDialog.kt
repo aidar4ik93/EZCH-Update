@@ -25,9 +25,9 @@ internal fun AllAppsDialog(
     val first = remember { FocusRequester() }
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) { apps.filter { it.name.contains(query, ignoreCase = true) } }
+    val glass by rememberGlass()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxWidth(.94f).fillMaxHeight(.9f), shape = DesktopShape,
-            color = androidx.compose.ui.graphics.Color(0xF0081222)) {
+        GlassSurface(glass, DesktopShape, Modifier.fillMaxWidth(.94f).fillMaxHeight(.9f)) {
             Column(Modifier.padding(24.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(title, fontSize = 24.sp, modifier = Modifier.weight(1f))

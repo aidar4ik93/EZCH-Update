@@ -1,5 +1,9 @@
 package com.example.homeezch
 
+import androidx.compose.ui.graphics.drawOutline
+
+import androidx.compose.ui.draw.drawWithCache
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -29,19 +33,56 @@ import androidx.compose.ui.unit.sp
 /** Layered translucent strokes approximate diffuse light without bitmap blur or extra textures. */
 @Composable internal fun Modifier.focusHalo(intensity: Float, accent: Color = Ice): Modifier = focusHalo({ intensity }, accent)
 
-/** Read animated intensity in drawing, avoiding composition on every animation frame. */
+/** Read animated intensity in drawing, avoiding composition on every animation frame.
+ *  Claude r50.4: the rings are painted ONCE per (size, colour, ring count) into a small bitmap shared by every
+ *  card of that size; a focus frame draws that one image with alpha = intensity instead of re-tessellating
+ *  4–12 stroked round rectangles per card (the costliest part of a focus frame on Mali-G31). */
 @Composable internal fun Modifier.focusHalo(level: () -> Float, accent: Color = Ice): Modifier {
     // Weak TVs get a 4-ring halo instead of none: the soft glow is part of the requested focus look.
     val rings = if (LocalRenderProfile.current.heavyEffects) 12 else 4
     return drawBehind {
-    val intensity = level()
-    if (intensity > .01f) for (ring in rings downTo 1) {
+        val intensity = level()
+        if (intensity > .01f && !PerfLab.noHalo) {
+            val pad = HaloCache.pad(this)
+            val image = HaloCache.image(this, accent, rings)
+            if (image != null) drawImage(image, Offset(-pad, -pad), alpha = intensity.coerceIn(0f, 1f))
+            else drawHaloRings(intensity, accent, rings)
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHaloRings(intensity: Float, accent: Color, rings: Int, inset: Float = 0f) {
+    for (ring in rings downTo 1) {
         val spread = (ring * 12f / rings).dp.toPx()
         drawRoundRect(accent.copy(alpha = intensity * .035f * (rings + 1 - ring) / rings * (12f / rings).coerceAtMost(2.2f)),
-            Offset(-spread, -spread), Size(size.width + 2 * spread, size.height + 2 * spread),
+            Offset(inset - spread, inset - spread), Size(size.width - 2 * inset + 2 * spread, size.height - 2 * inset + 2 * spread),
             CornerRadius(18.dp.toPx() + spread), style = Stroke(2.dp.toPx()))
     }
+}
+
+internal object HaloCache {
+    private data class Key(val w: Int, val h: Int, val color: Int, val rings: Int, val density: Float)
+    private val cache = android.util.LruCache<Key, androidx.compose.ui.graphics.ImageBitmap>(16)
+    /** Ring reach (12 dp) + half the stroke + 1 px of antialiasing. */
+    fun pad(scope: androidx.compose.ui.unit.Density) = with(scope) { 13.dp.toPx() + 1f }
+    fun image(scope: androidx.compose.ui.graphics.drawscope.DrawScope, accent: Color, rings: Int): androidx.compose.ui.graphics.ImageBitmap? {
+        val w = scope.size.width; val h = scope.size.height
+        if (w < 1f || h < 1f || w > 4000f || h > 4000f) return null
+        val key = Key(kotlin.math.round(w).toInt(), kotlin.math.round(h).toInt(), accent.value.hashCode(), rings, scope.density)
+        cache.get(key)?.let { return it }
+        return runCatching {
+            val pad = pad(scope)
+            val bw = kotlin.math.ceil(w + 2 * pad).toInt(); val bh = kotlin.math.ceil(h + 2 * pad).toInt()
+            val bitmap = androidx.compose.ui.graphics.ImageBitmap(bw, bh)
+            androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(scope, scope.layoutDirection,
+                androidx.compose.ui.graphics.Canvas(bitmap), Size(bw.toFloat(), bh.toFloat())) {
+                drawHaloRings(1f, accent, rings, inset = pad)
+            }
+            bitmap.prepareToDraw()
+            cache.put(key, bitmap); bitmap
+        }.getOrNull()
     }
+    fun clear() = cache.evictAll()
 }
 
 @Composable internal fun SettingsSection(title: String) {
@@ -74,12 +115,21 @@ internal fun settingsAccent(icon: String): Color = when (icon) {
     var focused by remember { mutableStateOf(false) }
     val returnRequester = remember { FocusRequester() }
     val rememberReturnFocus = LocalSettingsReturnFocus.current
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(200), label = "settingFocus")
+    // Claude r50: the focus animation is read only while drawing (lift, halo, rim) — the row is not recomposed
+    // on every animation frame, which mattered while the remote scrolls the long settings list.
+    val glow = animateFloatAsState(if (focused) 1f else 0f, tween(200), label = "settingFocus")
     val shape = RoundedCornerShape(14.dp)
     Row(modifier.fillMaxWidth().padding(vertical = 5.dp)
-        .graphicsLayer { scaleX = 1f + .018f * glow; scaleY = 1f + .018f * glow; alpha = if (enabled) 1f else .45f }
-        .focusHalo(glow, accent).clip(shape).background(Color(0xB0192B43))
-        .border(1.dp, accent.copy(alpha = .18f + .55f * glow), shape)
+        .graphicsLayer { val g = glow.value; scaleX = 1f + .018f * g; scaleY = 1f + .018f * g; alpha = if (enabled) 1f else .45f }
+        .focusHalo({ glow.value }, accent).clip(shape).background(Color(0xB0192B43))
+        .drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx() * 2)
+            onDrawWithContent {
+                drawContent()
+                drawOutline(outline, accent.copy(alpha = .18f + .55f * glow.value), style = stroke)
+            }
+        }
         .focusRequester(returnRequester)
         .onFocusChanged { focused = it.isFocused }.clickable(enabled = enabled, onClick = {
             rememberReturnFocus(returnRequester); onClick()

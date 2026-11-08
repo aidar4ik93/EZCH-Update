@@ -59,8 +59,23 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
         if (!mini) addView(editor, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
     }
     // Several recognition hypotheses: EVA Core picks the one it understands («громкость 20» over «громко 20 два»).
-    private val recognizer = HybridVoiceRecognizer(context, ::recognitionStatus, ::submit,
-        amplitude = { sphere.amplitude = it }, partial = { sphere.transcript = it },
+    // R52: one listening session hands at most one recognized phrase to the executor.
+    private val results = OneResultGate()
+    private fun recognized(text: String) {
+        if (!results.take()) { EvaStats.count("result_duplicate_dropped", "r=${results.current}"); com.example.homeezch.EzchDiag.log("EVA:ДУБЛЬ", "второй результат сессии #${results.current} отброшен: «${text.take(80)}»"); return }
+        EvaStats.count("result_recognized", "r=${results.current}")
+        com.example.homeezch.EzchDiag.log("EVA:РАСПОЗНАНО", "сессия #${results.current}: «${text.take(120)}»")
+        submit(text)
+    }
+    private val recognizer = HybridVoiceRecognizer(context, ::recognitionStatus, ::recognized,
+        amplitude = { sphere.amplitude = it }, partial = {
+            sphere.transcript = it
+            if (it.isNotBlank() && followUpWindow && EvaBrain.core(context).hasPowerConfirmation()) {
+                // Eight seconds of silence: do not cut off an answer already being recognized.
+                EvaBrain.core(context).armPowerConfirmation()
+                scheduleFollowUpTimeout(8000)
+            }
+        },
         choose = { hypotheses -> EvaBrain.core(context).pick(hypotheses) { appsCache } })
     val view: android.view.View get() = root
     private val appsReady = scope.async(Dispatchers.IO) {
@@ -110,7 +125,7 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
         sphere.onText = ::textCommand
         sphere.onSettings = { context.startActivity(Intent(context, AssistantSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         if (mini) sphere.setOnLongClickListener { close(); true } else sphere.requestFocus()
-        status(if (AiPreferences.enabled(context)) "Нажмите OK" else "Ева выключена · Меню — настройки")
+        status(if (AiPreferences.enabled(context)) (if (VoiceRemote.holdToTalk(context)) "Удерживайте кнопку микрофона" else "Нажмите OK") else "Ева выключена · Меню — настройки")
         if (AiPreferences.store(context).getBoolean("tts", true)) {
             EvaTts.listener = progress
             EvaTts.warm(context) { ready ->
@@ -157,6 +172,9 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
         startMicrophone(interrupted)
     }
     private fun startMicrophone(interrupted: Boolean) {
+        val listenSession = results.begin()
+        EvaStats.count("listen_started", "r=$listenSession")
+        com.example.homeezch.EzchDiag.log("EVA:СЛУШАЮ", "сессия распознавания #$listenSession")
         if (interrupted) {
             val token = speechGeneration.get()
             EvaTts.stop { sphere.post {
@@ -199,11 +217,26 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
         }
         job?.cancel(); clearChoice(); recognizer.cancel(); stopSpeech(); sphere.transcript = text
         if (!AiPreferences.enabled(context)) { com.example.homeezch.EzchDiag.log("EVA", "команда «${text.take(100)}», но Ева выключена"); status("Помощник выключен"); return }
+        // R53: the owner's own IR remotes and scenarios («громче на саундбаре», «кино») — only phrases naming them.
+        if (com.example.homeezch.ir.IrManager.load(context).let { it.devices.isNotEmpty() || it.scenarios.isNotEmpty() } &&
+            com.example.homeezch.ir.IrVoice.match(text, com.example.homeezch.ir.IrManager.data.value) != null) {
+            EvaStats.count("command_decided", "IrRemote")
+            job = scope.launch {
+                executing = true; sphere.busy = true; status("Отправляю ИК-сигнал…")
+                try {
+                    val r = com.example.homeezch.ir.IrManager.voice(context, text)
+                    com.example.homeezch.EzchDiag.log(if (r?.first == true) "IR" else "IR:НЕ ВЫПОЛНЕНО", "«${text.take(120)}» → ${r?.second}")
+                    answer(r?.second ?: "Не поняла команду")
+                } finally { executing = false; sphere.busy = false }
+            }
+            return
+        }
         // EVA AI Core (offline): dialog context («ещё», «наоборот»), memory, clarifying questions, meaning frames
         // («телевизор тормозит») and the meaning layer («громко 20», «открой его») on top of the strict rules.
         val decision = runCatching { EvaBrain.core(context).handle(text) { appsCache } }.getOrElse {
             com.example.homeezch.EzchDiag.error("EVA", "ядро не разобрало «$text»", it); EvaReply.Say("Не поняла команду")
         }
+        EvaStats.count("command_decided", decision.javaClass.simpleName)
         com.example.homeezch.EzchDiag.log("EVA", "«${text.take(200)}» → ${decision.toString().take(300)}")
         when (decision) {
             is EvaReply.Say -> answer(decision.text)
@@ -319,11 +352,23 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
     private var lastUtteranceId: String? = null
     private var completedUtteranceId: String? = null
     private fun startFollowUp() {
+        // Claude r56: Google TV remote = push-to-talk. An automatic follow-up opens the recogniser while nobody holds
+        // the button: it hears nothing, waits, and collides with the next press (02.11 18:36:18). The question stays
+        // pending; the owner answers by holding the button again (that press resolves «да» / the choice as before).
+        if (VoiceRemote.holdToTalk(context)) {
+            EvaBrain.core(context).armPowerConfirmation()
+            status("Удерживайте кнопку микрофона и ответьте"); return
+        }
+        EvaBrain.core(context).armPowerConfirmation()
         listen()
         followUpWindow = true
+        scheduleFollowUpTimeout(if (EvaBrain.core(context).hasPowerConfirmation()) 8000 else 6000)
+    }
+    private fun scheduleFollowUpTimeout(timeout: Long) {
+        conversationTimeout?.cancel()
         conversationTimeout = scope.launch {
-            delay(6000)
-            if (followUpWindow && !destroyed) { recognizer.cancel(); followUpWindow = false; close() }
+            delay(timeout)
+            if (followUpWindow && !destroyed) { EvaBrain.core(context).cancelPowerConfirmation(); recognizer.cancel(); followUpWindow = false; close() }
         }
     }
     private fun answer(text: String, expectReply: Boolean = false) {
@@ -355,7 +400,7 @@ class VoicePanel(private val context: Context, private val homeResult: ((String)
         continuation.invokeOnCancellation { options = emptyList() }
     }
     private fun clearChoice() { pendingChoice?.cancel(); pendingChoice = null; options = emptyList(); sphere.onListen = ::listen }
-    fun pause() { recognizer.cancel(); if (!executing) stopSpeech() }
-    fun cancel(showStatus: Boolean = true) { pendingReply = null; job?.cancel(); clearChoice(); recognizer.cancel(); stopSpeech(); sphere.busy = false; sphere.amplitude = 0f; if (showStatus) status("Отменено") }
-    fun destroy() { destroyed = true; llm.close(); cancel(false); hideEditor(); recognizer.destroy(); if (EvaTts.listener === progress) EvaTts.listener = null; scope.cancel() }
+    fun pause() { EvaBrain.core(context).cancelPowerConfirmation(); recognizer.cancel(); if (!executing) stopSpeech() }
+    fun cancel(showStatus: Boolean = true) { if (showStatus) EvaBrain.core(context).cancelPowerConfirmation(); pendingReply = null; job?.cancel(); clearChoice(); recognizer.cancel(); stopSpeech(); sphere.busy = false; sphere.amplitude = 0f; if (showStatus) status("Отменено") }
+    fun destroy() { EvaBrain.core(context).cancelPowerConfirmation(); destroyed = true; llm.close(); cancel(false); hideEditor(); recognizer.destroy(); if (EvaTts.listener === progress) EvaTts.listener = null; scope.cancel() }
 }

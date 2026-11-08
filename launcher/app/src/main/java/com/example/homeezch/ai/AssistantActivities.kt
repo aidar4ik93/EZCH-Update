@@ -24,7 +24,7 @@ class VoiceActivity : ComponentActivity() {
         setTheme(android.R.style.Theme_NoDisplay)
         super.onCreate(state)
         com.example.homeezch.EzchDiag.init(this, "кнопка ассистента (VoiceActivity), служба Евы ${if (EvaAppService.current != null) "есть" else "нет"}")
-        EvaEntry.open(this)
+        EvaEntry.open(this, ActivationGate.Source.VOICE_ACTIVITY)
         finish()
     }
 }
@@ -107,6 +107,7 @@ class AssistantSettingsActivity : ComponentActivity() {
         // Personal memory (ТЗ §17): view and erase without voice.
         button("Что Ева помнит обо мне") { report.text = EvaBrain.core(this).memory.describe() }
         button("Стереть личную память Евы") { EvaBrain.core(this).memory.forgetAll(); EvaBrain.core(this).resetDialog(); report.text = "Личная память Евы стёрта" }
+        button("Питание · сон, таймер и ИК-пульт") { startActivity(Intent(this, com.example.homeezch.ai.power.PowerSettingsActivity::class.java).putExtra("authorization", AiSettingsTicket.issue(this))) }
         button("Устройство и оптимизация") { startActivity(Intent(this, com.example.homeezch.DeviceOptimizationActivity::class.java)) }
         button("Сохранить диагностику (txt)") {
             report.text = "Сохраняю диагностику…"

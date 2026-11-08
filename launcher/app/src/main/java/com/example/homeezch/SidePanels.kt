@@ -6,6 +6,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +53,8 @@ internal fun SidePanel(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val visible = remember { MutableTransitionState(false).apply { targetState = true } }
+    // Claude r50: the desktop is copied once for frosted glass (see GlassBackdrop) — no per-frame blur.
+    val glass by rememberGlass()
     val editingBack by rememberUpdatedState(onBackWhileEditing)
     var returnFocus by remember { mutableStateOf<FocusRequester?>(null) }
     var leftActivity by remember { mutableStateOf(false) }
@@ -82,20 +89,32 @@ internal fun SidePanel(
         LaunchedEffect(Unit) { withFrameNanos { }; runCatching { firstFocus.requestFocus() } }
         BoxWithConstraints(Modifier.fillMaxSize().testTag("$tag-overlay")) {
             val panelWidth = (maxWidth * .46f).coerceIn(300.dp, 420.dp).coerceAtMost(maxWidth)
-            Box(Modifier.fillMaxSize().background(Color(0x88000611))
+            val screenWidth = maxWidth // read here: the glass content lambda is a BoxScope of its own
+            // Claude r50: the desktop is dimmed by the window manager (dim layer under this dialog window), not by a
+            // full-screen translucent fill redrawn by the GPU on every frame of the panel (measured on Homatics).
+            val dialogWindow = (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+            SideEffect {
+                dialogWindow?.let { w ->
+                    w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                    w.setDimAmount(.53f)
+                }
+            }
+            Box(Modifier.fillMaxSize()
                 .focusProperties { canFocus = false }.clickable(onClick = ::close)
                 .testTag("$tag-scrim"))
             AnimatedVisibility(visibleState = visible,
                 modifier = Modifier.align(if (edge == PanelEdge.LEFT) Alignment.CenterStart else Alignment.CenterEnd),
-                enter = slideInHorizontally(tween(240)) { if (edge == PanelEdge.LEFT) -it else it },
-                exit = slideOutHorizontally(tween(200)) { if (edge == PanelEdge.LEFT) -it else it }) {
+                // A soft spring (no bounce past the edge) reads as «physical» glass; the exit stays short.
+                enter = slideInHorizontally(spring(dampingRatio = .9f, stiffness = 420f,
+                    visibilityThreshold = IntOffset.VisibilityThreshold)) { if (edge == PanelEdge.LEFT) -it else it } +
+                    fadeIn(tween(160)),
+                exit = slideOutHorizontally(tween(190)) { if (edge == PanelEdge.LEFT) -it else it } + fadeOut(tween(150))) {
                 val shape = if (edge == PanelEdge.LEFT) RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                     else RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp)
-                Surface(Modifier.width(panelWidth).fillMaxHeight().testTag(tag),
-                    shape = shape, color = Color(0xF5102035), shadowElevation = 16.dp) {
+                GlassSurface(glass, shape, Modifier.width(panelWidth).fillMaxHeight().testTag(tag)) {
                     Column(Modifier.fillMaxSize().focusGroup().padding(
-                        start = if (edge == PanelEdge.LEFT) (maxWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
-                        end = if (edge == PanelEdge.RIGHT) (maxWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
+                        start = if (edge == PanelEdge.LEFT) (screenWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
+                        end = if (edge == PanelEdge.RIGHT) (screenWidth * .05f).coerceAtLeast(22.dp) else 22.dp,
                         top = 16.dp, bottom = 16.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.SemiBold,

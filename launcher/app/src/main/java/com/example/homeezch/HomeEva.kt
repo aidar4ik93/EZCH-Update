@@ -50,7 +50,7 @@ internal fun HomeEva(request: Int, cardWidth: Dp, onNavigation: (String) -> Unit
     fun open() {
         com.example.homeezch.ai.VoiceTiming.mark(com.example.homeezch.ai.VoiceTiming.Phase.PANEL_REQUESTED)
         // The wake recognizer must release its microphone before the command recognizer starts.
-        EvaEngine.release {
+        EvaEngine.freeMicrophone {
             if (resumed) {
                 activity = android.os.SystemClock.elapsedRealtime()
                 if (EvaAppService.current != null) EvaAppService.current?.showMiniPanel()
@@ -72,7 +72,8 @@ internal fun HomeEva(request: Int, cardWidth: Dp, onNavigation: (String) -> Unit
     }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) resumed = true
+            if (event == Lifecycle.Event.ON_RESUME) { resumed = true; EvaEngine.cancelIdleRelease() }
+            if (event == Lifecycle.Event.ON_STOP) EvaEngine.releaseWhenIdle()
             if (event == Lifecycle.Event.ON_PAUSE) {
                 // Only free the microphone here; the model stays loaded so returning to HOME does not
                 // re-read ~50 MB and stall navigation. MainActivity.onTrimMemory releases it when hidden.
@@ -85,7 +86,7 @@ internal fun HomeEva(request: Int, cardWidth: Dp, onNavigation: (String) -> Unit
     val wakeCommand = remember {
         { text: String ->
             wakeHeard = false
-            EvaEngine.release {
+            EvaEngine.freeMicrophone {
                 if (resumed) {
                     activity = android.os.SystemClock.elapsedRealtime()
                     val service = EvaAppService.current

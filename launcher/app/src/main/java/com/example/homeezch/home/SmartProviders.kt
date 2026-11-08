@@ -8,14 +8,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 interface SmartProvider {
@@ -31,91 +29,6 @@ internal val smartHttp: OkHttpClient by lazy {
         .callTimeout(12, TimeUnit.SECONDS).followRedirects(false).build()
 }
 private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
-
-/**
- * «Дом с Алисой»: one sign-in brings every device linked there — Яндекс Пульт IR remotes, Яндекс lamps
- * and sockets, and also Xiaomi (Mi Home) and Tuya / Smart Life accounts linked inside the Яндекс app.
- * Sign-in is the OAuth device flow: the TV shows a short code, the owner confirms it on the phone.
- * No IP address, no token copying. Needs an OAuth app id (oauth.yandex.ru, scopes iot:view + iot:control).
- */
-object YandexProvider : SmartProvider {
-    override val id = "yandex"
-    override val title = "Яндекс · Дом с Алисой"
-    private fun prefs(c: Context) = c.getSharedPreferences("ezch_yandex_home", Context.MODE_PRIVATE)
-    /** EZCH's own OAuth app (oauth.yandex.ru → scopes iot:view, iot:control, «вход по коду»). Empty until registered. */
-    private const val EZCH_CLIENT_ID = ""
-    private const val EZCH_CLIENT_SECRET = ""
-    fun clientId(c: Context) = prefs(c).getString("client_id", null)?.takeIf { it.isNotBlank() } ?: EZCH_CLIENT_ID
-    fun clientSecret(c: Context) = prefs(c).getString("client_secret", null)?.takeIf { it.isNotBlank() } ?: EZCH_CLIENT_SECRET
-    fun setApp(c: Context, id: String, secret: String) = prefs(c).edit().putString("client_id", id.trim()).putString("client_secret", secret.trim()).apply()
-    fun token(c: Context) = prefs(c).getString("token", "").orEmpty()
-    fun setToken(c: Context, token: String) = prefs(c).edit().putString("token", token.trim()).apply()
-    fun disconnect(c: Context) = prefs(c).edit().remove("token").apply()
-    override fun connected(context: Context) = token(context).length >= 20
-
-    data class DeviceCode(val deviceCode: String, val userCode: String, val url: String, val interval: Int, val expiresIn: Int)
-
-    /** Step 1: a code to show on the TV (https://ya.ru/device). */
-    suspend fun startSignIn(c: Context): Result<DeviceCode> = withContext(Dispatchers.IO) {
-        runCatching {
-            check(clientId(c).isNotBlank()) { "Не задан идентификатор приложения Яндекс OAuth" }
-            val body = FormBody.Builder().add("client_id", clientId(c)).add("device_id", deviceId(c)).add("device_name", "EZCH TV").build()
-            smartHttp.newCall(Request.Builder().url("https://oauth.yandex.ru/device/code").post(body).build()).execute().use { r ->
-                val o = JSONObject(r.body?.string().orEmpty())
-                check(r.isSuccessful) { o.optString("error_description", "Яндекс отклонил запрос") }
-                DeviceCode(o.getString("device_code"), o.getString("user_code"), o.optString("verification_url", "https://ya.ru/device"),
-                    o.optInt("interval", 5), o.optInt("expires_in", 300))
-            }
-        }
-    }
-    /** Step 2: poll until the owner confirms. Null = still waiting; failure = expired/denied. */
-    suspend fun pollToken(c: Context, code: DeviceCode): Result<String?> = withContext(Dispatchers.IO) {
-        runCatching {
-            val body = FormBody.Builder().add("grant_type", "device_code").add("code", code.deviceCode)
-                .add("client_id", clientId(c)).add("client_secret", clientSecret(c)).build()
-            smartHttp.newCall(Request.Builder().url("https://oauth.yandex.ru/token").post(body).build()).execute().use { r ->
-                val o = JSONObject(r.body?.string().orEmpty())
-                val token = o.optString("access_token")
-                when {
-                    token.isNotBlank() -> { setToken(c, token); token }
-                    o.optString("error") == "authorization_pending" -> null
-                    else -> throw IllegalStateException(o.optString("error_description", "Вход не подтверждён"))
-                }
-            }
-        }
-    }
-    private fun deviceId(c: Context): String = prefs(c).getString("device_id", null) ?: UUID.randomUUID().toString().also {
-        prefs(c).edit().putString("device_id", it).apply()
-    }
-
-    override suspend fun devices(context: Context): List<SmartDevice>? = withContext(Dispatchers.IO) {
-        if (!connected(context)) return@withContext null
-        runCatching {
-            smartHttp.newCall(Request.Builder().url("https://api.iot.yandex.net/v1.0/user/info")
-                .header("Authorization", "Bearer ${token(context)}").get().build()).execute().use { r ->
-                if (r.code == 401) { disconnect(context); return@use null }
-                if (!r.isSuccessful) return@use null
-                YandexMapper.parse(JSONObject(r.body?.string().orEmpty()))
-            }
-        }.getOrNull()
-    }
-
-    override suspend fun send(context: Context, device: SmartDevice, command: DeviceCommand): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = if (device.id.startsWith("scenario:"))
-                Request.Builder().url("https://api.iot.yandex.net/v1.0/scenarios/${device.id.removePrefix("scenario:")}/actions").post("".toRequestBody(JSON_TYPE))
-            else Request.Builder().url("https://api.iot.yandex.net/v1.0/devices/actions")
-                .post((YandexMapper.action(device, command) ?: return@runCatching false).toString().toRequestBody(JSON_TYPE))
-            smartHttp.newCall(request.header("Authorization", "Bearer ${token(context)}").build()).execute().use { r ->
-                if (!r.isSuccessful) return@use false
-                val o = JSONObject(r.body?.string().orEmpty().ifBlank { "{}" })
-                // Device actions report a per-capability status; "DONE" is the only success.
-                val caps = o.optJSONArray("devices")?.optJSONObject(0)?.optJSONArray("capabilities")
-                caps == null || (0 until caps.length()).all { caps.optJSONObject(it)?.optJSONObject("state")?.optJSONObject("action_result")?.optString("status", "DONE") == "DONE" }
-            }
-        }.getOrDefault(false)
-    }
-}
 
 /**
  * Tuya / Smart Life cloud directly (for homes without Яндекс). Needs a free Tuya IoT project:
@@ -258,7 +171,7 @@ object HomeAssistantProvider : SmartProvider {
 
 /** All ecosystems together: the «Умный дом» screen and Ai EvA voice commands use only this. */
 object SmartHub {
-    val providers: List<SmartProvider> = listOf(YandexProvider, TuyaProvider, HomeAssistantProvider)
+    val providers: List<SmartProvider> = listOf(YandexProvider, TuyaProvider, HomeAssistantProvider, com.example.homeezch.ir.IrProvider)
     fun anyConnected(context: Context) = providers.any { it.connected(context) }
     @Volatile var cache: List<SmartDevice> = emptyList(); private set
 

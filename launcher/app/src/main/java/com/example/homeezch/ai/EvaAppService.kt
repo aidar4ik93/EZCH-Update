@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Separately opted-in service: existing HOME permission is never silently expanded. */
 class EvaAppService : AccessibilityService() {
@@ -50,6 +51,8 @@ class EvaAppService : AccessibilityService() {
             }
         })
     }
+    @Volatile private var lastDeepClean: String? = null
+    @Volatile private var lastAdb: String? = null
     private val panelHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var miniPanel: VoicePanel? = null
     val panelVisible: Boolean get() = miniPanel != null
@@ -86,7 +89,7 @@ class EvaAppService : AccessibilityService() {
         refreshPanelTimeout()
         if (AiPreferences.enabled(this) && listen) {
             val expected = miniPanel
-            EvaEngine.release { if (miniPanel === expected && AiPreferences.enabled(this)) miniPanel?.listen() }
+            EvaEngine.freeMicrophone { if (miniPanel === expected && AiPreferences.enabled(this)) miniPanel?.listen() }
         } else if (!AiPreferences.enabled(this)) miniPanel?.status("Ева выключена")
     }
     fun hideMiniPanel() {
@@ -101,17 +104,49 @@ class EvaAppService : AccessibilityService() {
     override fun onServiceConnected() { current = this; com.example.homeezch.EzchDiag.init(this, "служба Ai EvA подключена") }
     override fun dump(fd: java.io.FileDescriptor, writer: java.io.PrintWriter, args: Array<out String>?) {
         val prefs = AiPreferences.store(this)
+        EvaStats.dump(writer)
+        VoiceTiming.dump(writer)
+        writer.println("EVA_MIC holdToTalk=${VoiceRemote.holdToTalk(this)} ambient=${VoiceRemote.hasAmbientMic(this)} inputs=${VoiceRemote.inputTypes(this)} handsFree=${EvaEngine.handsFreeEnabled(this)}")
         writer.println("EVA mini; profile=${com.example.homeezch.Profiles.active(this)}; enabled=${AiPreferences.enabled(this)}")
         writer.println("speech=${prefs.getString("speech_mode", "none")}/${prefs.getString("speech_state", "none")}; error=${prefs.getInt("last_speech_error", 0)}")
         val apps = AndroidActionExecutor(this).apps()
         writer.println("Available launch targets: ${apps.size}")
         apps.forEach { writer.println("  ${it.label}: ${it.component}") }
+        // Claude r57: box test of the deep clean — dry run lists what would be stopped; the real run reports to EzchDiag.
+        if (args?.firstOrNull() == "--deepclean-dry") {
+            writer.println("DEEPCLEAN_RECENT ${DeepClean.recent()}")
+            writer.println("DEEPCLEAN_PLAN ${DeepClean.plan(this, applicationPackage())}")
+        }
+        if (args?.firstOrNull() == "--deepclean") {
+            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                val r = DeepClean.run(this@EvaAppService)
+                lastDeepClean = DeepClean.message(r)
+            }
+            writer.println("DEEPCLEAN_STARTED")
+        }
+        writer.println("DEEPCLEAN_LAST ${lastDeepClean}")
+        // Claude r58: box test of the local ADB client (the first call shows Android's «Разрешить отладку?»).
+        if (args?.firstOrNull() == "--localadb") {
+            val cmd = args.drop(1).joinToString(" ").ifBlank { "id" }
+            Thread({ lastAdb = com.example.homeezch.LocalAdb.shell(this, cmd)?.trim()?.take(300) ?: ("FAIL " + com.example.homeezch.LocalAdb.lastError) }, "ezch-adb-test").start()
+            writer.println("LOCALADB_STARTED")
+        }
+        writer.println("LOCALADB_LAST ${lastAdb?.replace('\n', '|')} granted=${com.example.homeezch.LocalAdb.granted(this)} reachable=${com.example.homeezch.LocalAdb.reachable()}")
         if (args?.firstOrNull() == "--match") args.drop(1).take(30).forEach { name ->
             writer.println("Match [$name]: ${matchApp(name, apps)}")
         }
     }
     // No background tree scanning: only the window-change event is used, to replace Google Assistant with EVA.
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) { AssistantTakeover.onEvent(this, event) }
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) DeepClean.onWindow(event.packageName?.toString())
+        AssistantTakeover.onEvent(this, event)
+    }
+    /** Claude r57: progress of a long action (deep clean) on Eva's mini panel. */
+    fun panelStatus(text: String) {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { panelHandler.post { panelStatus(text) }; return }
+        miniPanel?.status(text)
+    }
     override fun onInterrupt() { controller.clear(); hideMiniPanel() }
     override fun onUnbind(intent: Intent?): Boolean { hideMiniPanel(); current = null; controller.clear(); return super.onUnbind(intent) }
     override fun onDestroy() { hideMiniPanel(); current = null; super.onDestroy() }
@@ -119,6 +154,10 @@ class EvaAppService : AccessibilityService() {
         .sortedByDescending { it.layer }.firstNotNullOfOrNull { it.root?.packageName?.toString() }
     private val remoteButtons = com.example.homeezch.RemoteButtonPress()
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        // R52: remote use in HOME's dialogs (settings panel, menus) pauses hands-free too — Activity.onUserInteraction
+        // never sees keys sent to a dialog window, so the «microphone in use» overlay stayed on while scrolling settings.
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode !in setOf(KeyEvent.KEYCODE_ASSIST, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH))
+            EvaEngine.pauseForInput()
         // GPT r22: learned quick-launch keys work with Ai EvA accessibility service as well.
         if (com.example.homeezch.RemoteButtons.learning) { remoteButtons.reset(); return false }
         // Claude r23: a held volume key must keep stepping while this service filters keys.
@@ -126,9 +165,9 @@ class EvaAppService : AccessibilityService() {
         if (event.keyCode !in setOf(KeyEvent.KEYCODE_ASSIST, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH) &&
             remoteButtons.handle(this, event, defaults = false)) return true
         if (event.keyCode !in setOf(KeyEvent.KEYCODE_ASSIST, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH) || !AiPreferences.enabled(this)) return false
-        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) runCatching {
-            showMiniPanel()
-        }
+        // R52: one press opens Eva once, even when the same press also reaches her by another path.
+        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled &&
+            EvaActivation.request(ActivationGate.Source.KEY_SERVICE, event.downTime)) runCatching { showMiniPanel() }
         return true
     }
     private fun controlRoot(): AccessibilityNodeInfo? {
@@ -141,58 +180,5 @@ class EvaAppService : AccessibilityService() {
     fun pressOk(): Boolean = android.os.Build.VERSION.SDK_INT >= 33 &&
         performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_DPAD_CENTER)
 
-    /**
-     * «Перезагрузи телевизор»: apps may not reboot Android themselves, but this service may open the system power menu
-     * (the same as holding the power button) and press its item, like the owner would with the remote.
-     * Called only after the owner said «да».
-     */
-    suspend fun power(op: String): Outcome {
-        val item = when (op) {
-            "reboot" -> Regex("(?i)перезапуст|перезагруз|restart|reboot")
-            "shutdown" -> Regex("(?i)выключ|отключить питание|power ?off|shut ?down")
-            else -> Regex("(?i)спящ|режим ожидания|sleep|standby")
-        }
-        val confirm = Regex("(?i)^(?:ок|ok|да|yes|перезапустить|перезагрузить|выключить|restart|reboot|power off|подтвердить)$")
-        hideMiniPanel()
-        delay(300)
-        if (!performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)) return Outcome(false, "Телевизор не открыл меню питания. Зажмите кнопку питания на пульте")
-        val first = waitForText(item, 3000) ?: run {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            return Outcome(false, "В меню питания этого телевизора нет такого пункта. Выберите его пультом")
-        }
-        if (!click(first)) return Outcome(false, "Не получилось нажать «${first.text ?: first.contentDescription}»")
-        // Some firmwares ask once more («Перезапустить?» → ОК).
-        waitForText(confirm, 1500)?.let { click(it) }
-        return Outcome(true, when (op) { "reboot" -> "Перезагружаю"; "shutdown" -> "Выключаю"; else -> "Спокойной ночи" })
-    }
-
-    private suspend fun waitForText(pattern: Regex, timeoutMs: Long): AccessibilityNodeInfo? {
-        val deadline = SystemClock.elapsedRealtime() + timeoutMs
-        while (SystemClock.elapsedRealtime() < deadline) {
-            for (w in windows) {
-                val root = w.root ?: continue
-                if (root.packageName?.toString() == packageName) continue
-                find(root, pattern, 0)?.let { return it }
-            }
-            delay(150)
-        }
-        return null
-    }
-    private fun find(node: AccessibilityNodeInfo, pattern: Regex, depth: Int): AccessibilityNodeInfo? {
-        if (depth > 25) return null
-        val label = (node.text ?: node.contentDescription)?.toString()?.trim().orEmpty()
-        if (label.isNotEmpty() && label.length <= 40 && pattern.containsMatchIn(label) && node.isVisibleToUser) return node
-        for (i in 0 until node.childCount) { val c = node.getChild(i) ?: continue; find(c, pattern, depth + 1)?.let { return it } }
-        return null
-    }
-    private fun click(node: AccessibilityNodeInfo): Boolean {
-        var n: AccessibilityNodeInfo? = node
-        while (n != null) { if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true; n = n.parent }
-        val r = android.graphics.Rect(); node.getBoundsInScreen(r)
-        if (r.isEmpty) return false
-        val path = android.graphics.Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }
-        return dispatchGesture(android.accessibilityservice.GestureDescription.Builder()
-            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build(), null, null)
-    }
     suspend fun execute(action: Action) = controller.execute(action)
 }

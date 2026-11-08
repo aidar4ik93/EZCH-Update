@@ -24,6 +24,7 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
@@ -74,7 +76,7 @@ internal fun HomeScreen(
     onLaunch: (LaunchApp) -> Unit,
     preferredFocus: String? = null, onFocused: (String) -> Unit = {},
     weatherReady: Boolean = true, appsReady: Boolean = true, homeReset: Int = 0, homeMenu: Int = 0,
-    consumeReset: () -> Unit = {}, consumeMenu: () -> Unit = {}, voiceStart: Int = 0
+    consumeReset: () -> Unit = {}, consumeMenu: () -> Unit = {}, voiceStart: Int = 0, evaPack: Int = 0
 ) {
     val context = LocalContext.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
@@ -171,6 +173,13 @@ internal fun HomeScreen(
         evaRequest++
     }
     LaunchedEffect(voiceStart) { if (voiceStart > 0) requestEva() }
+    // Claude u2: «Ева · расширенный пакет» in EZCH Update opens Eva's settings (models) through the owner's guard.
+    LaunchedEffect(evaPack) {
+        if (evaPack > 0) guarded {
+            runCatching { context.startActivity(Intent(context, com.example.homeezch.ai.AssistantSettingsActivity::class.java)
+                .putExtra("authorization", com.example.homeezch.ai.AiSettingsTicket.issue(context)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
+    }
     DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) aiEnabled = com.example.homeezch.ai.AiPreferences.enabled(context)
@@ -427,7 +436,8 @@ internal fun HomeScreen(
     BoxWithConstraints(Modifier.fillMaxSize().onPreviewKeyEvent { event ->
         val key = event.nativeKeyEvent
         if (key.keyCode in setOf(NativeKey.KEYCODE_VOICE_ASSIST, NativeKey.KEYCODE_ASSIST, NativeKey.KEYCODE_SEARCH)) {
-            if (key.action == NativeKey.ACTION_DOWN && key.repeatCount == 0) requestEva()
+            if (key.action == NativeKey.ACTION_DOWN && key.repeatCount == 0 &&
+                com.example.homeezch.ai.EvaActivation.request(com.example.homeezch.ai.ActivationGate.Source.HOME_KEY, key.downTime)) requestEva()
             true
         } else false
     }) {
@@ -455,8 +465,18 @@ internal fun HomeScreen(
             }
             // R25: the microphone hint has its own slot above the shelves; floating at the bottom it covered
             // "Открыть разъёмы" and a tap there opened Accessibility (GPT R24 defect 3).
-            Box(Modifier.fillMaxWidth().height((desktopHeight * .19f).coerceIn(52.dp, 110.dp)), contentAlignment = Alignment.CenterStart) {
-                MicSetupHint(Modifier.widthIn(max = 560.dp))
+            // Claude r51: the same slot also holds «Сейчас играет» (left) and, since R53, «Умный дом» (right). Both are ordinary
+            // focus targets between the top bar and the shelves and disappear when they have nothing to show.
+            Column(Modifier.fillMaxWidth().heightIn(min = (desktopHeight * .19f).coerceIn(52.dp, 110.dp)),
+                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    MicSetupHint(Modifier.widthIn(max = 560.dp))
+                    NowPlayingCard()
+                    Spacer(Modifier.weight(1f))
+                    // R53: the «Продолжить» strip gave way to a direct «Умный дом» entry (owner's request).
+                    if (editing == null) SmartHomeShortcut()
+                }
+                if (editing == null) SmartDeskStrip(Modifier.horizontalScroll(rememberScrollState()))
             }
             CompositionLocalProvider(LocalBringIntoViewSpec provides DesktopBringIntoViewSpec) {
             Column(Modifier.weight(1f).verticalScroll(desktopScroll)) {
@@ -506,10 +526,18 @@ internal fun HomeScreen(
                             }
                         } }
                         val addRequester = remember(row.id) { requesters.getOrPut("all-apps-${row.id}") { FocusRequester() } }
+                        // Claude r55: A/B on Homatics (r96, 2×2 runs each): drawing the focused shelf directly cost MORE GPU
+                        // (p50 17.0 ms) than keeping every shelf cached (14.7 ms), so caching stays the default.
+                        // PerfLab bit 0 still switches the focused shelf to direct drawing for further measurements.
+                        var shelfFocused by remember(row.id) { mutableStateOf(false) }
                         LazyRow(modifier = rowNavigation((if (row.isFolder) listOf("folder:${row.id}") else rowApps.map(::keyOf)) + "all-apps-${row.id}").fillMaxWidth()
+                            .onFocusChanged { shelfFocused = it.hasFocus }
                             // Claude r24: each shelf is cached as one GPU layer; a frame re-renders only the shelf that
                             // changes (focus glide), the others are drawn as one image (RenderThread work on weak TVs).
-                            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                            .graphicsLayer {
+                                compositingStrategy = if (shelfFocused && PerfLab.focusedShelfDirect) androidx.compose.ui.graphics.CompositingStrategy.Auto
+                                    else androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                            }
                             .testTag("app-row-${row.id}"), state = listState, horizontalArrangement = Arrangement.spacedBy(shelfGap),
                             contentPadding = PaddingValues(horizontal = shelfGutter, vertical = 18.dp)) {
                             if (row.isFolder) item("folder:${row.id}") {
@@ -638,6 +666,10 @@ internal fun HomeScreen(
             }
         } } }, confirmButton = { TextButton(onClick = { usbExpanded = false }) { Text("Закрыть") } })
     var phoneRemoteDialog by remember { mutableStateOf(false) }
+    var kidsLimitDialog by remember { mutableStateOf(false) }
+    if (kidsLimitDialog) KidsLimitDialog { kidsLimitDialog = false }
+    var smartDeskPicker by remember { mutableStateOf(false) }
+    if (smartDeskPicker) SmartDeskPicker { smartDeskPicker = false }
     if (phoneRemoteDialog) com.example.homeezch.phone.PhoneRemoteDialog { phoneRemoteDialog = false }
     if (launcherSettings) SidePanel("Настройки", PanelEdge.RIGHT, "settings-panel", settingsFirst,
         onDismiss = ::closeSettings) {
@@ -655,6 +687,25 @@ internal fun HomeScreen(
                 }
                 SettingsItem("Голос", "Голосовой помощник EVA", "Настроить микрофон, системную роль и проверить совместимость.") {
                     guarded { context.startActivity(Intent(context, com.example.homeezch.ai.AssistantSettingsActivity::class.java)
+                        .putExtra("authorization", com.example.homeezch.ai.AiSettingsTicket.issue(context))) }
+                }
+                SettingsItem("Домой", "Плитки умного дома", "До шести устройств прямо на рабочем столе: свет, кондиционер, пылесос, сценарии — одно нажатие ОК.",
+                    remember { SmartDesk.pinned(context).size.let { if (it == 0) "нет" else "$it" } }) { smartDeskPicker = true }
+                SettingsItem("Профили", "Детский лимит времени", "Сколько минут в день можно смотреть в профиле. Когда время выйдет, продлить или вернуться к владельцу можно только с PIN владельца.",
+                    remember { KidsLimit.summary(context) }) { guarded { kidsLimitDialog = true } }
+                SettingsItem("Экран", "Заставка EZCH", "Часы, дата, погода и устройства умного дома в стеклянном стиле, пока телевизор простаивает. Выберите «EZCH — часы и погода» в системной заставке.") {
+                    if (runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isFailure)
+                        Toast.makeText(context, "На этой прошивке нет экрана выбора заставки", Toast.LENGTH_LONG).show()
+                }
+                SettingsItem("Звук", "«Сейчас играет» на рабочем столе",
+                    "Обложка и кнопки ⏮ ⏯ ⏭ для YouTube, кинотеатров и музыки. Нужно один раз разрешить EZCH доступ к уведомлениям (уведомления не читаются и не хранятся).",
+                    remember { if (NowPlaying.allowed(context)) "включено" else "нужен доступ" }) {
+                    if (!NowPlaying.openPermission(context)) Toast.makeText(context,
+                        "На этой прошивке нет экрана доступа к уведомлениям. Попросите владельца выполнить по adb: cmd notification allow_listener ${context.packageName}/com.example.homeezch.ai.EzchMediaListener",
+                        Toast.LENGTH_LONG).show()
+                }
+                SettingsItem("Питание", "Питание телевизора", "Сон, таймер выключения и управление телевизором через ИК-пульт.") {
+                    guarded { context.startActivity(Intent(context, com.example.homeezch.ai.power.PowerSettingsActivity::class.java)
                         .putExtra("authorization", com.example.homeezch.ai.AiSettingsTicket.issue(context))) }
                 }
                 SettingsItem("Пульт", "Телефон как пульт и микрофон", "QR-код: говорите с Евой через микрофон телефона, печатайте и отправляйте ссылки на ТВ.") {
@@ -759,6 +810,16 @@ internal fun HomeScreen(
             onToggle = { app -> guarded { commit(saved.hideApp(keyOf(app))) } }, onPlace = { app -> guarded { placing = app } }, title = folder.title)
     }
     if (profilePicker) ProfilePicker({ profilePicker = false }, ::reloadDesktop)
+    // Claude r52: a child profile's daily time is over — only the owner's PIN extends it or returns to the owner.
+    var timeUp by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) { timeUp = runCatching { KidsLimit.expired(context) }.getOrDefault(false); kotlinx.coroutines.delay(30_000) }
+        }
+    }
+    if (timeUp && pinProfile == null) KidsTimeUp(Profiles.list(context).firstOrNull { it.id == activeProfile }?.name ?: "",
+        onExtend = { minutes -> guarded { KidsLimit.extend(context, minutes); timeUp = KidsLimit.expired(context) } },
+        onOwner = { guarded { if (Profiles.switch(context, "owner")) { reloadDesktop(); KidsLimit.schedule(context); timeUp = false } } })
     pinProfile?.let { profile -> PinPrompt(profile, { pinProfile = null; guardedAction = null; if (!unlocked) launcherSettings = false }) {
         pinProfile = null; unlocked = true; val action = guardedAction; guardedAction = null; action?.invoke()
     } }
@@ -776,10 +837,11 @@ internal fun HomeScreen(
 private fun DesktopAddTile(title: String, width: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, onFocus: () -> Unit = {}, glyph: String = "+", action: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val heavy = LocalRenderProfile.current.heavyEffects
-    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(150, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "allAppsFocus")
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(if (heavy) 220 else 160), label = "allAppsHalo")
-    Column(modifier.width(width * AppCardScale).height(94.dp * AppCardScale).graphicsLayer { scaleX = scale; scaleY = scale }
-        .focusHalo({ glow }).clip(AppCardShape)
+    val lift = animateFloatAsState(if (focused) 1f else 0f,
+        tween(if (focused) (if (heavy) 190 else 150) else 90, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "allAppsFocus")
+    fun cardScale() = 1f + .075f * lift.value
+    Column(modifier.width(width * AppCardScale).height(94.dp * AppCardScale).graphicsLayer { val s = cardScale(); scaleX = s; scaleY = s }
+        .focusHalo({ lift.value }).clip(AppCardShape)
         .border(if (focused) 4.dp else 1.dp, if (focused) Color(0xFF48B9FF) else Color(0xFF34455B), AppCardShape)
         .onFocusChanged { focused = it.isFocused; if (focused) onFocus() }.background(Color(0x66101C29), AppCardShape)
         .clickable(onClick = action).padding(8.dp * AppCardScale), horizontalAlignment = Alignment.CenterHorizontally,

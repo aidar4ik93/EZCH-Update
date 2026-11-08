@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -77,6 +79,8 @@
         </intent>
     </queries>
 
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
         android:allowBackup="true"
         android:banner="@drawable/tv_banner"
@@ -93,6 +97,12 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/eva_accessibility" />
         </service>
 
+        <activity android:name=".ai.power.PowerSettingsActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
+        <receiver android:name=".ai.power.SleepTimerReceiver" android:exported="false" />
+        <receiver android:name=".ai.power.EvaDeviceAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/eva_device_admin" />
+            <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED" /></intent-filter>
+        </receiver>
         <receiver android:name=".install.InstallResultReceiver" android:exported="false" />
         <receiver android:name=".HomeBootReceiver" android:exported="false">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
@@ -100,6 +110,7 @@
         <!-- Exported: the system assistant settings open it via voice-interaction settingsActivity (PIN-guarded inside). -->
         <activity android:name=".ai.AssistantSettingsActivity" android:exported="true" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
         <activity android:name=".ai.SmartHomeActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
+        <activity android:name=".ir.IrManagerActivity" android:exported="false" android:screenOrientation="landscape" android:theme="@style/Theme.EzchAiSettings" />
         <!-- ASSIST / VOICE_COMMAND entry: lets EVA be chosen as the assist app on firmwares that list activities. -->
         <activity android:name=".ai.VoiceActivity" android:exported="true" android:theme="@style/Theme.EzchVoicePanel"
             android:excludeFromRecents="true" android:noHistory="true">
@@ -136,6 +147,12 @@
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+        <receiver android:name=".KidsLimitReceiver" android:exported="false" />
+        <!-- Claude r52: EZCH screensaver (clock, weather, smart home); the owner picks it in Android → Заставка. -->
+        <service android:name=".EzchDream" android:exported="true" android:label="EZCH — часы и погода"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter><action android:name="android.service.dreams.DreamService" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </service>
         <service android:name=".HomeButtonService" android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:label="@string/home_service_name">

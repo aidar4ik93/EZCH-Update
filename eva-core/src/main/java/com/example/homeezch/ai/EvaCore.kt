@@ -66,6 +66,7 @@ class EvaCore(
 
     fun handle(text: String, apps: () -> List<AppTarget> = { emptyList() }): EvaReply {
         val now = clock()
+        if (game != null && PowerIntentParser.parse(text) != null) game = null
         val g = game
         if (g != null && now - g.at <= GAME_MS && text.isNotBlank()) {
             game = null
@@ -90,6 +91,7 @@ class EvaCore(
                 }
                 // A real command in the middle of the game ends the game and is carried out.
                 val decided = decide(text, apps, now)
+                if (decided is EvaReply.Confirm && decided.actions.any { it is Action.Power }) return decided
                 if (decided is EvaReply.Execute && decided.actions.none { it is Action.PlayGame }) return decided
                 // «который час», «какая погода» mid-game: answer the question; the game ends.
                 if (decided is EvaReply.Say && EvaSmallTalk.answer(text) != null) return decided
@@ -131,8 +133,9 @@ class EvaCore(
 
         pending?.let { p ->
             pending = null
-            if (now - p.at <= PENDING_MS) answerPending(p, words)?.let { return remember(it, now, confirmed = p.confirm) }
+            if (now - p.at in 0..(if (p.options.any { it is Action.Power }) 8_000L else PENDING_MS)) answerPending(p, words)?.let { return remember(it, now, confirmed = p.confirm) }
         }
+        PowerIntentParser.parse(raw)?.let { return remember(EvaReply.Execute(listOf(it)), now) }
         memoryCommand(words)?.let { return it }
         // GigaChat asked «Включить?» a moment ago: «да», «давай второй», «нет, другой» continue that conversation.
         if (chatEnabled() && chat.awaitsReply() && chat.lastTurnAt >= lastAt && words.size <= 6 &&
@@ -145,7 +148,6 @@ class EvaCore(
         film(normalize(raw).replace(Regex("[,.!?-]"), " ").replace(Regex("\\s+"), " ").trim(), apps, now)?.let { return remember(it, now) }
         cinema(EvaLexicon.tokens(EvaLexicon.simplify(raw)), apps, now)?.let { return remember(it, now) }
         preFrames(words, now)?.let { return remember(it, now) }
-        power(EvaLexicon.tokens(EvaLexicon.simplify(EvaLexicon.correct(raw))))?.let { return remember(it, now) }
         limits(words)?.let { return it }
 
         // «включи ютуб и найди рамштайн»: a chain, not a song called «ютуб и найди рамштайн».
@@ -259,6 +261,11 @@ class EvaCore(
     }
 
     /** Forget the dialog (on «отмена», profile change or panel close); personal memory stays. */
+    fun hasPowerConfirmation() = pending?.let { it.confirm && it.options.any { a -> a is Action.Power } } == true
+    fun cancelPowerConfirmation() { if (hasPowerConfirmation()) pending = null }
+    /** Start the eight seconds after the spoken question, rather than during TTS. */
+    fun armPowerConfirmation() { pending?.takeIf { hasPowerConfirmation() }?.let { pending = Pending(it.options, it.stems, it.apps, it.confirm, clock()) } }
+
     fun resetDialog() { pending = null; last = emptyList(); lastAt = 0L; chat.clear() }
 
     // ---- dialog ------------------------------------------------------------------------------
@@ -288,7 +295,7 @@ class EvaCore(
 
     /** Only actions that change privacy or security ask first (ТЗ §18.9). */
     private fun confirmation(actions: List<Action>): String? = when {
-        actions.any { it is Action.Power } -> when ((actions.first { it is Action.Power } as Action.Power).op) {
+        actions.any { it is Action.Power && it.op in setOf("reboot", "shutdown", "sleep") } -> when ((actions.first { it is Action.Power } as Action.Power).op) {
             "reboot" -> "Перезагрузить телевизор? Скажите «да» или «нет»"
             "shutdown" -> "Выключить телевизор? Скажите «да» или «нет»"
             else -> "Перевести телевизор в спящий режим? Скажите «да» или «нет»"
@@ -304,6 +311,7 @@ class EvaCore(
     private fun answerPending(p: Pending, words: List<String>): EvaReply? {
         val phrase = words.joinToString(" ")
         if (phrase in no || words.firstOrNull() == "нет") return EvaReply.Say("Хорошо, не буду")
+        if (p.confirm && p.options.any { it is Action.Power }) return if (phrase in setOf("да", "давай", "конечно", "ага", "угу", "подтверждаю", "перезагружай", "выключай", "yes")) EvaReply.Execute(p.options) else EvaReply.Say("Не получила подтверждения. Отменено")
         if (p.confirm) return if (words.size <= 3 && words.any { it in yes }) EvaReply.Execute(p.options) else null
         ordinal(words)?.let { i -> return p.options.getOrNull(i - 1)?.let { EvaReply.Execute(listOf(it)) } ?: EvaReply.Say("Варианта $i нет") }
         if (words.size == 1 && words[0] in yes && p.options.size == 1) return EvaReply.Execute(p.options)
@@ -507,21 +515,6 @@ class EvaCore(
     }
 
     /** «перезагрузи телевизор», «перезапусти приставку», «выключи телек», «усыпи телевизор»: asked first, then the power menu. */
-    private fun power(words: List<String>): EvaReply? {
-        if (words.isEmpty() || words.size > 6) return null
-        val device = setOf("телевизор", "телевизора", "тв", "телек", "приставку", "приставка", "систему", "андроид", "бокс", "себя", "устройство")
-        val rest = words.filter { it !in device && it !in setOf("мне", "ты", "весь", "полностью", "сейчас", "срочно") }
-        val verb = rest.singleOrNull() ?: rest.joinToString(" ")
-        val op = when {
-            Regex("^(?:перезагрузи|перезагрузить|перезагрузись|перезапусти|перезапустить|перезапустись|ребутни|перегрузи|перезагрузка|рестарт)$").matches(verb) -> "reboot"
-            Regex("^(?:выключи|выключить|выключись|отключи|отключись|выруби|вырубись|выключение)$").matches(verb) && words.any { it in device } -> "shutdown"
-            Regex("^(?:выключись|вырубись|отключись)$").matches(verb) -> "shutdown"
-            Regex("^(?:усыпи|спящий режим|в спящий режим|переведи в спящий режим|режим сна|спать)$").matches(verb) && words.any { it in device } -> "sleep"
-            else -> return null
-        }
-        return EvaReply.Execute(listOf(Action.Power(op)))
-    }
-
     /** Things a launcher cannot do on Android TV: an honest answer instead of a wrong action («включи субтитры» is not a YouTube video). */
     private fun limits(words: List<String>): EvaReply? {
         if (has(words, "субтитр")) return EvaReply.Say("Субтитры включаются в самом плеере: нажмите OK на пульте и выберите «Субтитры»")

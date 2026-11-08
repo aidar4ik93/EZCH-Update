@@ -120,7 +120,7 @@ class AndroidVoiceRecognizer(private val context: Context, private val status: (
         speech?.destroy(); speech = null
         amplitude(0f)
     }
-    override fun onReadyForSpeech(params: Bundle?) { if (active) { VoiceTiming.mark(VoiceTiming.Phase.SYSTEM_READY); AiPreferences.store(context).edit().putString("speech_state", "listening").apply(); status("Говорите…") } }
+    override fun onReadyForSpeech(params: Bundle?) { if (active) { VoiceTiming.mark(VoiceTiming.Phase.SYSTEM_READY); AiPreferences.store(context).edit().putString("speech_state", "listening").apply(); status(VoiceRemote.listening(context)) } }
     override fun onBeginningOfSpeech() { if (active) { speechBegan = true; VoiceTiming.mark(VoiceTiming.Phase.SYSTEM_SPEECH_BEGIN); status("Слушаю…") } }
     override fun onEndOfSpeech() { if (active) { VoiceTiming.mark(VoiceTiming.Phase.SYSTEM_SPEECH_END); status("Распознаю…")
         handler.removeCallbacks(timeout); handler.postDelayed(timeout, 2500) } }
@@ -139,7 +139,7 @@ class AndroidVoiceRecognizer(private val context: Context, private val status: (
         com.example.homeezch.EzchDiag.log("STT", "варианты: ${all.joinToString(" | ").take(300)} → «${text.orEmpty().take(120)}»")
         releaseSession() // Keep the bound provider warm until panel destruction.
         VoiceTiming.mark(VoiceTiming.Phase.SYSTEM_RELEASED)
-        if (text.isNullOrBlank()) status("Не расслышала. Нажмите ОК и скажите ещё раз") else {
+        if (text.isNullOrBlank()) status(VoiceRemote.again(context)) else {
             AiPreferences.store(context).edit().putBoolean("ru_result", true).putString("speech_state", "recognized").apply()
             result(text)
         }
@@ -168,7 +168,9 @@ class AndroidVoiceRecognizer(private val context: Context, private val status: (
         if (fallback?.invoke(error) == true) return
         // GPT R27 (11:15:38, 11:15:57): speech began, peak 10 dB, yet error 7 and no words. One automatic re-listen
         // instead of making the owner press the button again; never for silence, never twice in a row.
-        if (shouldRelisten(error, speechBegan, peakRms, noMatchRetries)) {
+        // Claude r56: on Google TV the remote sends sound only while its button is held — after release a re-listen
+        // hears nothing and keeps the owner waiting ~6 s more («тупит»). There the next press is the retry.
+        if (!VoiceRemote.holdToTalk(context) && shouldRelisten(error, speechBegan, peakRms, noMatchRetries)) {
             noMatchRetries++
             com.example.homeezch.EzchDiag.log("STT", "ошибка $error при речи — слушаю ещё раз")
             status("Не расслышала — повторите, я слушаю…")
@@ -184,8 +186,9 @@ class AndroidVoiceRecognizer(private val context: Context, private val status: (
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Нет разрешения микрофона"
             SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Русская модель недоступна"
             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Сетевой распознаватель недоступен"
-            SpeechRecognizer.ERROR_NO_MATCH -> "Не расслышала. Нажмите ОК и скажите ещё раз, чуть ближе к микрофону"
-            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Я ничего не услышала. Нажмите ОК и говорите сразу после сигнала"
+            SpeechRecognizer.ERROR_NO_MATCH -> VoiceRemote.again(context)
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> if (VoiceRemote.holdToTalk(context)) "Я ничего не услышала. Удерживайте кнопку микрофона, пока говорите"
+                else "Я ничего не услышала. Нажмите кнопку микрофона и говорите сразу после сигнала"
             else -> "Ошибка распознавателя: $error"
         })
     }

@@ -29,7 +29,9 @@ internal object HomeRole {
         val resolvedPackage = context.packageManager
             .resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
             ?.activityInfo?.packageName
-        isEffectiveHome(resolvedPackage, context.packageName, holdsRole(context))
+        // Only the resolver outcome matters here; querying RoleManager adds
+        // two synchronous Binder calls to every HOME/window check.
+        isEffectiveHome(resolvedPackage, context.packageName, false)
     }.getOrDefault(false)
 
     fun requestIntent(context: Context): Intent? {

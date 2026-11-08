@@ -36,6 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.draw.scale
@@ -77,6 +78,11 @@ private val artCache = object :
 
 class MainActivity : ComponentActivity() {
     private val remotePress = RemoteButtonPress()
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        com.example.homeezch.ai.EvaEngine.pauseForInput()
+    }
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean =
         remotePress.handle(this, event, defaults = true) || super.onKeyDown(keyCode, event)
     override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean =
@@ -87,8 +93,11 @@ class MainActivity : ComponentActivity() {
     private var homeReset by mutableIntStateOf(0)
     private var homeMenu by mutableIntStateOf(0)
     private var voiceStart by mutableIntStateOf(0)
+    private var evaPack by mutableIntStateOf(0)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        PerfLab.apply(intent)
+        if (intent.getBooleanExtra("ezch.eva.pack", false)) evaPack++
         if (intent.getBooleanExtra("ezch.voice.start", false)) voiceStart++
         if (intent.getBooleanExtra("ezch.home.menu", false)) homeMenu++ else homeReset++
     }
@@ -148,26 +157,53 @@ class MainActivity : ComponentActivity() {
         super.onTrimMemory(level)
         if (level >= 10) com.example.homeezch.ai.EvaEngine.release()
         if (level in 10..19 || level >= 40) {
-            artCache.evictAll()
+            artCache.evictAll(); HaloCache.clear()
             renderMonitor.memoryPressure()
         }
+    }
+
+    // Claude r84: `adb shell dumpsys activity com.example.homeezch.usb/com.example.homeezch.MainActivity` shows the gate state.
+    override fun dump(prefix: String, fd: java.io.FileDescriptor?, writer: java.io.PrintWriter, args: Array<out String>?) {
+        super.dump(prefix, fd, writer, args)
+        writer.println(prefix + "EZCH ComposeA11yGate=" + ComposeA11yGate.lastState)
     }
 
     override fun onResume() {
         super.onResume()
         com.example.homeezch.phone.PhoneRemote.home = java.lang.ref.WeakReference(this)
         HomeStartup.shown(this)
+        // Claude r58: by default EZCH makes itself the only HOME (box's own ADB, owner allows once). Never on the main thread.
+        val ctx = applicationContext
+        Thread({ HomeTakeover.maybeApply(ctx) { msg -> runOnUiThread { android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show() } } }, "ezch-home").start()
         immersiveDesktop()
+        // Claude r84: desktop semantics bridge off while only EZCH's own accessibility services are on (see ComposeA11yGate).
+        window.decorView.post { ComposeA11yGate.apply(window.decorView) }
         sourceGeneration++
         appGeneration++
+        runCatching { KidsLimit.mark(this, true); KidsLimit.schedule(this) }
+    }
+
+    // Claude r52: screen-time limit counts only while the TV is on.
+    private val screenState = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            runCatching { KidsLimit.mark(context, intent.action == Intent.ACTION_SCREEN_ON) }
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(screenState) }
+        super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PerfLab.apply(intent)
         EzchDiag.init(this, "HOME")
+        runCatching { registerReceiver(screenState, android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) }) }
         WeeklyCleanup.schedule(this)
         com.example.homeezch.phone.PhoneRemote.start(this)
         com.example.homeezch.ai.CinemaMode.start(this)
+        if (intent.getBooleanExtra("ezch.eva.pack", false)) evaPack++
         if (intent.getBooleanExtra("ezch.voice.start", false)) voiceStart++
         if (intent.getBooleanExtra("ezch.home.menu", false)) homeMenu++ else homeReset++
         // Claude r24: the desktop and the store always paint an opaque wallpaper over the whole screen, so the
@@ -217,7 +253,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 HomeScreen(
-                    apps = visibleApps, appsReady = appsReady, homeReset = homeReset, homeMenu = homeMenu, voiceStart = voiceStart,
+                    apps = visibleApps, appsReady = appsReady, homeReset = homeReset, homeMenu = homeMenu, voiceStart = voiceStart, evaPack = evaPack,
                     consumeReset = { homeReset = 0 }, consumeMenu = { homeMenu = 0 },
                     weatherReady = weatherReady,
                     preferredFocus = lastFocused.key, onFocused = { lastFocused.key = it },
@@ -270,27 +306,34 @@ internal fun AppTile(
     val heavy = LocalRenderProfile.current.heavyEffects
     // Focus motion is a cheap RenderThread transform: animate it on every device (1.5–2 GB TVs too);
     // only the multi-ring glow is reduced on weak hardware. Snapping here made the desktop feel jerky.
-    val scale by animateFloatAsState(if (focused) 1.075f else 1f, tween(150, easing = FastOutSlowInEasing), label = "appFocus")
-    val glow by animateFloatAsState(if (focused) 1f else 0f, tween(if (heavy) 220 else 160), label = "appHalo")
-    val iconScale by animateFloatAsState(if (focused) 1.06f else 1f, tween(150, easing = FastOutSlowInEasing), label = "iconFocus")
+    // Claude r50: one animation drives lift, halo and icon (was three clocks per card). Focus arrives in 150 ms;
+    // the card that loses focus settles in 90 ms, so on ↑/↓ the old shelf stops re-rendering its layer sooner.
+    val lift = animateFloatAsState(if (focused) 1f else 0f,
+        tween(if (focused) (if (heavy) 190 else 150) else 90, easing = FastOutSlowInEasing), label = "appFocus")
+    // Read only inside draw/layer lambdas: an animation frame re-draws the card, never recomposes it.
+    fun cardScale() = 1f + .075f * lift.value
+    fun iconScale() = 1f + .06f * lift.value
     val image = rememberAppArtwork(app.component)
     val shape = AppCardShape
+    // Card colour fading into the old bottom shade (0x66000713 over it), as one vertical gradient.
+    val base = if (app.component == null) Color(0xFF07385F).copy(alpha = .4f) else panel.copy(alpha = .4f)
+    val cardFill = remember(base) { Brush.verticalGradient(listOf(base, androidx.compose.ui.graphics.lerp(base.copy(alpha = 1f), Color(0xFF000713), .625f).copy(alpha = .64f))) }
 
     Box(
         modifier = modifier
             .width(width * AppCardScale)
             .height(94.dp * AppCardScale)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .focusHalo({ glow })
-            .clip(shape)
-            .background(
-                if (app.component == null) Color(0xFF07385F).copy(alpha = .4f) else panel.copy(alpha = .4f), shape
-            )
-            .border(
+            .graphicsLayer { val s = if (PerfLab.noCardScale) 1f else cardScale(); scaleX = s; scaleY = s }
+            .focusHalo({ lift.value })
+            .then(if (PerfLab.noCardClip) Modifier else Modifier.clip(shape))
+            // Claude r55: fill + bottom shade as ONE rectangle with a cached brush inside the card clip (was a rounded
+            // fill plus a second full-card rounded gradient box — two CircularRRectOps per card, ~50 per frame on Mali).
+            .drawBehind { drawRect(cardFill) }
+            .then(if (PerfLab.noCardBorder) Modifier else Modifier.border(
                 if (focused) 1.5.dp else 1.dp,
                 if (focused) Ice.copy(alpha = .8f) else Color(0xFF34455B),
                 shape
-            )
+            ))
             .onFocusChanged {
                 focused = it.isFocused
                 if (focused) onFocus()
@@ -306,7 +349,7 @@ internal fun AppTile(
                 contentScale = ContentScale.Fit,
                 // Claude r24: scaled while drawing, not in its own layer: one RenderNode less per card on every frame.
                 modifier = Modifier.fillMaxWidth().height(55.dp * AppCardScale).padding(top = 7.dp * AppCardScale)
-                    .drawWithContent { val s = iconScale; scale(s, s) { this@drawWithContent.drawContent() } }
+                    .drawWithContent { val s = iconScale(); scale(s, s) { this@drawWithContent.drawContent() } }
             )
 
         } else if (app.component == null) {
@@ -326,20 +369,6 @@ internal fun AppTile(
             }
         }
 
-        // Same shaded rounded card without a separate clip layer (the brush is drawn with the card shape).
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Transparent,
-                            Color(0x66000713)
-                        )
-                    ),
-                    shape
-                )
-        )
 
         Text(
             app.name,
@@ -412,7 +441,9 @@ internal fun StoreScreen(onBack: () -> Unit) {
 }
 
 @Composable
-internal fun CosmicBackground(premium: Boolean = true) { LiveWallpaper(premium) }
+internal fun CosmicBackground(premium: Boolean = true) {
+    if (PerfLab.noWallpaper) Box(Modifier.fillMaxSize().background(Color(0xFF060C18))) else LiveWallpaper(premium)
+}
 
 @Composable
 private fun rememberAppArtwork(

@@ -23,7 +23,7 @@ class R22HybridReadyTest {
         val rows=JSONArray();val errors=JSONArray()
         ins.runOnMainSync {
             input=HybridVoiceRecognizer(ctx,{ message ->
-                if (!recorded && (message=="Говорите…" || message.startsWith("Я слушаю"))) {
+                if (!recorded && (message.startsWith("Говорите") || message.startsWith("Я слушаю"))) {
                     recorded=true;rows.put(SystemClock.elapsedRealtime()-start);latch.countDown()
                 } else if (input?.isListening==false && !message.endsWith("…")) { errors.put(message);latch.countDown() }
             },{})

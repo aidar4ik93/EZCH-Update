@@ -26,7 +26,10 @@ object EvaEntry {
         else -> Route.OVER_APP
     }
 
-    fun open(context: Context) {
+    fun open(context: Context, source: ActivationGate.Source = ActivationGate.Source.OTHER, press: Long? = null) {
+        // R52: every path (assistant session, ASSIST intent, Google Assistant takeover, assigned button) goes through
+        // the same gate, so one press never opens and starts listening twice.
+        if (!EvaActivation.request(source, press)) return
         val service = EvaAppService.current
         val homeVisible = com.example.homeezch.phone.PhoneRemote.home?.get() != null
         when (route(service != null, homeVisible)) {
@@ -75,7 +78,7 @@ class EvaOverlayActivity : Activity() {
         touch()
         if (!AiPreferences.enabled(this)) { presenter.status("Ева выключена"); return }
         if (!EvaEngine.hasMicPermission(this)) { presenter.status("Разрешите микрофон: Настройки EZCH → Настроить EZCH"); return }
-        EvaEngine.release { if (panel === presenter && !isFinishing) presenter.listen() }
+        EvaEngine.freeMicrophone { if (panel === presenter && !isFinishing) presenter.listen() }
     }
 
     override fun onDestroy() { handler.removeCallbacks(idle); panel?.destroy(); panel = null; super.onDestroy() }

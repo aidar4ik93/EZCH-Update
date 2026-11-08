@@ -34,6 +34,7 @@ internal object HomeStartup {
 class HomeBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        com.example.homeezch.ai.power.SleepTimer.cancel(context)
         HomeStartup.pending(context)
         HomeButtonService.requestBootStart()
     }

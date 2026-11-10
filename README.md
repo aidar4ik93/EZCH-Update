@@ -2,7 +2,9 @@
 
 Launcher: 0.49.1-EVA / versionCode 111, пакет `com.example.homeezch.usb`. Update: 1.8.2 / versionCode 32. [Результаты проверки Update и ограничения](docs/UPDATE_1_8_2_TEST_REPORT_RU.md). В Update есть непройденный автоматический тест пульта; версия публикуется как предварительная, без утверждения полной готовности.
 
-[Скачать Launcher 0.49.1](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v0.49.1) · [Update 1.8.2, предварительный](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v1.8.2) · [Google Drive Apps](https://drive.google.com/drive/folders/1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB) · [Проверка публикации](docs/PUBLICATION_20261030_RU.md).
+[EZCH Launcher 0.56.0 Classic и Scene](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v0.56.0) · [EZCH Update 1.9.1](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v1.9.1) · [Google Drive Apps](https://drive.google.com/drive/folders/1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB).
+
+Актуальные APK и архив исходников лаунчера на Google Drive размещаются в папке Apps аккаунта Haier Club (evozoneclub@gmail.com). Синхронизация каталога берёт APK из этой папки.
 
 По умолчанию пакет `com.example.ezchupdate.tvtest`; `-PezchLegacyUpdate=true` собирает прежний `com.example.ezchupdate`. Для подписи второго варианта сценарий `scripts/build-release.ps1` принимает `-LegacyUpdate`. Выбирать пакет по существующей установке. Приватные ключи в исходники не входят.
 

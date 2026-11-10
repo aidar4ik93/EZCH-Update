@@ -164,6 +164,19 @@
       "iconSha256": "0185a12cf26a931a303cc5d489fb6d4dd92a581efd1d231eb40137d0a2170a61"
     },
     {
+      "name": "PORTAL Connect",
+      "packageName": "com.cyberportal.connect",
+      "versionCode": 163,
+      "versionName": "1.3.5",
+      "signerSha256": "223bb33b0afa126a0fa14ea3788c9e875b5557aa8e4c51e81d00793808dbf33d",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1zpGIzsolWb9XtYQk3EciEXlGlpXsPpg2&export=download&confirm=t",
+      "apkPath": "/PortalConnect-1.3.5-armeabi-v7a.apk",
+      "sha256": "b965fa396634174d1a2829828e9948f629e4136aab46bd2757fb54f2bc371098",
+      "sizeBytes": 13035083,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/b965fa396634174d1a2829828e9948f629e4136aab46bd2757fb54f2bc371098.png",
+      "iconSha256": "f4257a706308d4104787dfb6c62ceb9011f83a4bcf2ba4c5bdb2f9dc1da21d26"
+    },
+    {
       "name": "PRISMA",
       "packageName": "top.rootu.prisma",
       "versionCode": 109,

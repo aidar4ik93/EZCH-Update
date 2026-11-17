@@ -47,6 +47,19 @@
       "iconSha256": "7728be02417fc5c7dc4f4600b1da31ee06e876569840ad7f6a48160d66970e4e"
     },
     {
+      "name": "Ева · Baya (офлайн-голос)",
+      "packageName": "com.example.homeezch.baya",
+      "versionCode": 3,
+      "versionName": "1.0.2",
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/EZCH_Voice_Baya_1.0.2_ARM.apk",
+      "apkPath": "/EZCH_Voice_Baya_1.0.2_ARM.apk",
+      "sha256": "8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3",
+      "sizeBytes": 16386671,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3.png",
+      "iconSha256": "b084c1d28a2d626feef4624c935472bfecf709138cd1d9f906fa5d302a936076"
+    },
+    {
       "name": "AmneziaVPN",
       "packageName": "org.amnezia.vpn",
       "versionCode": 2164,
@@ -357,19 +370,6 @@
       "sizeBytes": 57554930,
       "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa.png",
       "iconSha256": "5b6eb9352662f0bb5e6df4b23b014a1eddb8f54ca5e92cecd028d32b73377318"
-    },
-    {
-      "name": "Ева · Baya (офлайн-голос)",
-      "packageName": "com.example.homeezch.baya",
-      "versionCode": 3,
-      "versionName": "1.0.2",
-      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/EZCH_Voice_Baya_1.0.2_ARM.apk",
-      "apkPath": "/EZCH_Voice_Baya_1.0.2_ARM.apk",
-      "sha256": "8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3",
-      "sizeBytes": 16386671,
-      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3.png",
-      "iconSha256": "b084c1d28a2d626feef4624c935472bfecf709138cd1d9f906fa5d302a936076"
     }
   ]
 }

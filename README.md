@@ -1,5 +1,14 @@
 # EZCH Launcher AI 0.49.1 / Update 1.8.2
 
+<!-- ezch-launcher-current -->
+## Актуальный лаунчер и голос Евы
+
+[Classic и Scene 0.57.11 + Baya 1.0.2](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v0.57.11): ARMv7/ARM64, прежняя подпись EZCH, автоматические ударения и согласованная интонация для русских ответов. APK, исходники и SHA-256 находятся в релизе. В каталоге EZCH Update доступен выбор Classic/Scene и отдельный голосовой пакет.
+
+[Установка и ограничения](docs/releases/EZCH_0.57.11_RU.md) · [Отчёт проверок](docs/releases/BAYA_STYLE_0.57.11_RU.md).
+<!-- /ezch-launcher-current -->
+
+
 Launcher: 0.49.1-EVA / versionCode 111, пакет `com.example.homeezch.usb`. Update: 1.8.2 / versionCode 32. [Результаты проверки Update и ограничения](docs/UPDATE_1_8_2_TEST_REPORT_RU.md). В Update есть непройденный автоматический тест пульта; версия публикуется как предварительная, без утверждения полной готовности.
 
 [EZCH Launcher 0.56.0 Classic и Scene](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v0.56.0) · [EZCH Update 1.9.1](https://github.com/aidar4ik93/EZCH-Update/releases/tag/v1.9.1) · [Google Drive Apps](https://drive.google.com/drive/folders/1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB).

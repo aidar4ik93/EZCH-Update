@@ -18,6 +18,19 @@ SPEC.loader.exec_module(sync)
 SIGNER = "1" * 64
 
 class ProjectReleaseTests(unittest.TestCase):
+    def test_baya_voice_release_survives_sync_and_only_trusts_newer_same_signer(self):
+        voice = dict(name="Eva Baya", packageName="com.example.homeezch.baya", versionCode=3,
+                     versionName="1.0.2", sha256="2" * 64, signerSha256=SIGNER, sizeBytes=200,
+                     apkUrl="https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/voice.apk")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "apps.json"
+            path.write_text(json.dumps({"apps": [voice]}))
+            for scanned in ([], [dict(voice,versionCode=2)], [dict(voice,versionCode=4,signerSha256="f"*64)]):
+                with self.subTest(scanned=scanned):
+                    self.assertEqual(sync.preserve_project_releases(scanned,path),[voice])
+            newer = dict(voice,versionCode=4,versionName="1.0.3",sha256="3"*64)
+            self.assertEqual(sync.preserve_project_releases([newer],path),[newer])
+
     def test_newer_signed_drive_release_updates_and_remains_pinned(self):
         old = dict(name="EZCH", packageName="com.example.ezchupdate", versionCode=32,
                    versionName="1.8.2", sha256="2" * 64, signerSha256=SIGNER, sizeBytes=200,
@@ -416,4 +429,5 @@ class CatalogSyncTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
 

@@ -29,22 +29,22 @@
     {
       "name": "EZCH Launcher",
       "packageName": "com.example.homeezch.usb",
-      "versionCode": 143,
-      "versionName": "0.56.0-Scene",
+      "versionCode": 155,
+      "versionName": "0.57.11-Scene",
       "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602",
-      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.56.0/EZCH_Launcher_0.56.0-Scene_claude.apk",
-      "apkPath": "/EZCH_Launcher_0.56.0-Scene_claude.apk",
-      "sha256": "a776db93c17318703abd125c7b2880415905026f5807e41b592847c56ea60cbe",
-      "sizeBytes": 234790128,
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/EZCH_Scene_0.57.11_ARM.apk",
+      "apkPath": "/EZCH_Scene_0.57.11_ARM.apk",
+      "sha256": "eee27b3941c235fae9f453d1b32a0b734b5c3cc798ce92ec9c5d4afe4e5ffebf",
+      "sizeBytes": 82029074,
       "alternateLauncher": {
-        "versionName": "0.56.0-Classic",
-        "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.56.0/EZCH_Launcher_0.56.0-Classic_claude.apk",
-        "apkPath": "/EZCH_Launcher_0.56.0-Classic_claude.apk",
-        "sha256": "399a5c498c003fd67eabd5d72cd5c57b6c91ca40ee3163f17caf980286cc806b",
-        "sizeBytes": 234773744
+        "versionName": "0.57.11-Classic",
+        "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/EZCH_Classic_0.57.11_ARM.apk",
+        "apkPath": "/EZCH_Classic_0.57.11_ARM.apk",
+        "sha256": "507f6900867006aa63e19a586c304cbd1cd4fcc55090c20d37fc3f79f7756c1c",
+        "sizeBytes": 82020882
       },
-      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/a776db93c17318703abd125c7b2880415905026f5807e41b592847c56ea60cbe.png",
-      "iconSha256": "c8a2b502c8cf18ac64dfcaedd91e09edc8152c203a24b99c1102a35d0f7cc0b0"
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/eee27b3941c235fae9f453d1b32a0b734b5c3cc798ce92ec9c5d4afe4e5ffebf.png",
+      "iconSha256": "7728be02417fc5c7dc4f4600b1da31ee06e876569840ad7f6a48160d66970e4e"
     },
     {
       "name": "AmneziaVPN",
@@ -357,6 +357,19 @@
       "sizeBytes": 57554930,
       "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa.png",
       "iconSha256": "5b6eb9352662f0bb5e6df4b23b014a1eddb8f54ca5e92cecd028d32b73377318"
+    },
+    {
+      "name": "Ева · Baya (офлайн-голос)",
+      "packageName": "com.example.homeezch.baya",
+      "versionCode": 3,
+      "versionName": "1.0.2",
+      "signerSha256": "ea0e9a1aad77b1fb42f32644a7386131ceed43e07464dcde22754691e70cc602",
+      "apkUrl": "https://github.com/aidar4ik93/EZCH-Update/releases/download/v0.57.11/EZCH_Voice_Baya_1.0.2_ARM.apk",
+      "apkPath": "/EZCH_Voice_Baya_1.0.2_ARM.apk",
+      "sha256": "8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3",
+      "sizeBytes": 16386671,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8184cb67a0786b9aee24848580467f75cb2e5cb0e723f32b5fef0e63b50cd6d3.png",
+      "iconSha256": "b084c1d28a2d626feef4624c935472bfecf709138cd1d9f906fa5d302a936076"
     }
   ]
 }

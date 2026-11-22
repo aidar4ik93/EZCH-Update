@@ -60,6 +60,19 @@
       "iconSha256": "b084c1d28a2d626feef4624c935472bfecf709138cd1d9f906fa5d302a936076"
     },
     {
+      "name": "AllaTV",
+      "packageName": "com.allatv.app",
+      "versionCode": 28,
+      "versionName": "1.8.9",
+      "signerSha256": "a6d61d1959af2ea9872c0bdc147d19ce8a03c8da476e37473657d2b2f39edbf8",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1US2JtHLO4ElhGZnjBhhHh1-w_ksY_yJn&export=download&confirm=t",
+      "apkPath": "/AllaTV-v1.8.9.apk",
+      "sha256": "a190e9febce4ba6b6fe6d6866e660b2c6ee8e7d2ac1a24a3680c5c2afd424591",
+      "sizeBytes": 41596123,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/a190e9febce4ba6b6fe6d6866e660b2c6ee8e7d2ac1a24a3680c5c2afd424591.png",
+      "iconSha256": "bafd37bcd80db71155282d60a12dfe52e6d330e96d08ac534d32ceecc429eae5"
+    },
+    {
       "name": "AmneziaVPN",
       "packageName": "org.amnezia.vpn",
       "versionCode": 2164,
@@ -346,17 +359,17 @@
       "iconSha256": "2a13b55e3c6a5863b47244b7405844e6c40b08c5a9ed12f5b23ee2a9f22a0129"
     },
     {
-      "name": "Лайт HD TV",
+      "name": "Лайт - Цифровое ТВ",
       "packageName": "limehd.ru.lite",
-      "versionCode": 999,
-      "versionName": "7.0.0",
-      "signerSha256": "5c2fbfc0cb89fc06ed7c4d85ca57e352c8d7de0f1635a582a0565a5c23072a21",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=1MvQirgXeE4tmctVd75sICPZkjzCHlAfv&export=download&confirm=t",
-      "apkPath": "/Лайт HD TV 7.0.0.apk",
-      "sha256": "a3892b58fae6ebe0d74f68e6d248f20c1ca92cd5768762b75b5649ddd099b8f5",
-      "sizeBytes": 41181040,
-      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/a3892b58fae6ebe0d74f68e6d248f20c1ca92cd5768762b75b5649ddd099b8f5.png",
-      "iconSha256": "084866c545b03ae5c20d547c3aceece7efc45d68bf23d0a0bb6608813fecb95f"
+      "versionCode": 634,
+      "versionName": "5.2.1",
+      "signerSha256": "2a2b1af23a6e62a9a96760778a2ab9e13f0241ea80cd267b9c938cfe1b33247a",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=14riQpUcPRdAtdrMXhMRRHkR2b9t0l182&export=download&confirm=t",
+      "apkPath": "/Лайт HD_Tv.apk",
+      "sha256": "22f0020e6eb29336b2b0eb6e42a4b6336674fbb9415732cf455fa39943421a5d",
+      "sizeBytes": 58169254,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/22f0020e6eb29336b2b0eb6e42a4b6336674fbb9415732cf455fa39943421a5d.png",
+      "iconSha256": "1fc80be1b3532f4f9e88a81e53774eb894761605e894a14e07a1687c8b610db1"
     },
     {
       "name": "Медиаплеер Виму",
@@ -370,6 +383,19 @@
       "sizeBytes": 57554930,
       "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/8f9bd2f069c9b2172225657fd1795f8f1531f39c0d4f1ad0b0e7fe10a4a3beaa.png",
       "iconSha256": "5b6eb9352662f0bb5e6df4b23b014a1eddb8f54ca5e92cecd028d32b73377318"
+    },
+    {
+      "name": "МОЁ ТВ",
+      "packageName": "com.github.dimzon.owntv",
+      "versionCode": 109,
+      "versionName": "1.8",
+      "signerSha256": "2961a2a3a5495f75e599330a43c5e8824554771482b76feaa7e9d46cc83afcec",
+      "apkUrl": "https://drive.usercontent.google.com/download?id=1IfZlCHRMb7da5-iettYmOf2kQW-u9gJT&export=download&confirm=t",
+      "apkPath": "/МОЁ ТВ v1.8.apk",
+      "sha256": "88a23653223c97a19ef1d8acc88199b6999d53b24346c509056281b15685a834",
+      "sizeBytes": 7741827,
+      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/88a23653223c97a19ef1d8acc88199b6999d53b24346c509056281b15685a834.png",
+      "iconSha256": "0ee1786cdca3d90dac3c0953c2fbf9bd7c3b51f61844523eb0bea8e701c77442"
     }
   ]
 }

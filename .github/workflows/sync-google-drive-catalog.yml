@@ -2,8 +2,14 @@ name: Sync application catalog from Google Drive
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '2-57/5 * * * *'
+    - cron: '20 3 * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: Verify APK bytes even if folder metadata is unchanged
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'scripts/**catalog*.py'
@@ -18,7 +24,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      changed: ${{ steps.source.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare metadata parser dependency
+        run: python3 -c 'import PIL' || python3 -m pip install 'Pillow==11.3.0'
+      - name: Check folder metadata without downloading APKs
+        id: source
+        env:
+          FORCE: ${{ github.event_name == 'pull_request' || github.event.schedule == '20 3 * * *' || inputs.force == true }}
+        shell: bash
+        run: |
+          args=()
+          if [ "$FORCE" = true ]; then args+=(--force); fi
+          python3 scripts/check-drive-catalog.py "${args[@]}"
+
   sync:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -44,6 +71,7 @@ jobs:
       - name: Verify synchronization behavior
         run: |
           python3 -m unittest discover -s scripts -p 'test_sync*catalog.py' -v
+          python3 -m unittest discover -s scripts -p 'test_check_drive_catalog.py' -v
           python3 -m unittest discover -s scripts -p 'test_catalog_icons.py' -v
       - name: Prepare Android SDK build tools
         shell: bash
@@ -53,7 +81,7 @@ jobs:
           test -f "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar"
       - name: Synchronize and verify the complete public folder
         run: |
-          python3 scripts/sync-google-drive-catalog.py --sdk "$ANDROID_HOME" --keep-project-releases
+          python3 scripts/sync-google-drive-catalog.py --sdk "$ANDROID_HOME" --keep-project-releases --source-state catalog-source.json
           cp apps.json app/src/main/assets/apps.json
           cp apps.json launcher/app/src/main/assets/apps.json
       - name: Validate generated catalog
@@ -66,19 +94,19 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           mkdir -p catalog-icons
-          git add -A -- apps.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json catalog-icons/
+          git add -A -- apps.json catalog-source.json app/src/main/assets/apps.json launcher/app/src/main/assets/apps.json catalog-icons/
           if git diff --cached --quiet; then
             echo 'Catalog is unchanged'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Update Google Drive application catalog'
+          git commit -m 'Update verified Google Drive catalog and source snapshot'
           # Never replay an older verified snapshot over a release published
           # while the complete folder scan was running. The next run rescans.
           git fetch origin "$DEFAULT_BRANCH"
           if [ "$(git rev-parse HEAD^)" != "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
-            echo 'Repository changed during verification; preserving the newer catalog'
+            echo 'Repository changed during verification; preserving the newer catalog; watcher will retry'
             exit 0
           fi
           git push origin "HEAD:$DEFAULT_BRANCH"
@@ -88,4 +116,6 @@ jobs:
           name: verified-google-drive-catalog
           path: |
             apps.json
+            catalog-source.json
             catalog-icons/
+

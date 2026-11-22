@@ -56,7 +56,7 @@ class PublicDriveTests(unittest.TestCase):
         self.assertEqual(drive.active_project_catalog([legacy, tv]), [legacy, tv])
 
 class SyncIsolationTests(unittest.TestCase):
-    def run_sync(self, root, errors=None, download_error=False, changed=False):
+    def run_sync(self, root, errors=None, download_error=False, changed=False, source_state=None):
         errors = errors or {}
         items = [drive.DriveFile("good12345678", "Good.apk", 4, 1),
                  drive.DriveFile("bad123456789", "Bad.apk", 4, 1)]
@@ -78,7 +78,21 @@ class SyncIsolationTests(unittest.TestCase):
                         versionCode=1, versionName="1", signerSha256="b" * 64)
         with patch.object(drive.common, "sdk_tools", return_value=("a", "b", "c")), \
              patch.object(drive.common.SdkInspector, "_metadata", side_effect=metadata):
-            return drive.sync(Api(), root / "cache", root / "apps.json", None, False)
+            return drive.sync(Api(), root / "cache", root / "apps.json", None, False, source_state)
+
+    def test_verified_source_snapshot_is_only_written_after_complete_success(self):
+        for options in [dict(download_error=True),dict(changed=True)]:
+            with self.subTest(options=options),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);state=root/'source.json';state.write_text('previous snapshot')
+                with self.assertRaises((drive.SyncError,OSError)):
+                    self.run_sync(root,source_state=state,**options)
+                self.assertEqual(state.read_text(),'previous snapshot')
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);state=root/'source.json'
+            self.run_sync(root,source_state=state)
+            value=json.loads(state.read_text(encoding='utf-8'))
+            self.assertEqual(value['catalogSha256'],hashlib.sha256((root/'apps.json').read_bytes()).hexdigest())
+            self.assertEqual(len(value['files']),2)
 
     def test_invalid_apk_is_skipped_and_corrected_file_is_retried(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -146,4 +160,5 @@ class RetainedIconTests(unittest.TestCase):
                 self.assertEqual(list(staging.iterdir()), [])
 
 if __name__ == "__main__": unittest.main()
+
 

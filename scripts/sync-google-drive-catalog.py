@@ -18,6 +18,7 @@ import tempfile
 import urllib.request
 import os
 import shutil
+from datetime import datetime, timezone
 
 spec = importlib.util.spec_from_file_location("catalog_common", Path(__file__).with_name("sync-yandex-catalog.py"))
 common = importlib.util.module_from_spec(spec)
@@ -202,13 +203,36 @@ class IconBatch:
         return changed
 
 
-def sync(api, cache, output, sdk, keep_project_releases=True):
+def listing_fingerprint(items):
+    rows = [[x.id, x.name, x.size, x.modified] for x in sorted(items, key=lambda x: x.id)]
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def write_source_state(items, output, destination, folder_id=FOLDER_ID):
+    """Record only the listing that was verified, never a later folder observation."""
+    value = dict(format=1, folderId=folder_id, fingerprint=listing_fingerprint(items),
+                 files=[[x.id, x.name, x.size, x.modified] for x in sorted(items, key=lambda x: x.id)],
+                 catalogSha256=hashlib.sha256(Path(output).read_bytes()).hexdigest(),
+                 verifiedAt=datetime.now(timezone.utc).isoformat())
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix="source-state-", dir=destination.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def sync(api, cache, output, sdk, keep_project_releases=True, source_state=None):
     Path(cache).mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="icons-", dir=cache) as staging:
-        return _sync(api, cache, output, sdk, keep_project_releases, IconBatch(output, staging))
+        return _sync(api, cache, output, sdk, keep_project_releases, IconBatch(output, staging), source_state)
 
 
-def _sync(api, cache, output, sdk, keep_project_releases, batch):
+def _sync(api, cache, output, sdk, keep_project_releases, batch, source_state=None):
     cache = Path(cache); cache.mkdir(parents=True, exist_ok=True)
     items = api.list_files()
     inspector = common.SdkInspector(api, cache, *common.sdk_tools(sdk))
@@ -269,6 +293,8 @@ def _sync(api, cache, output, sdk, keep_project_releases, batch):
         else:
             app.pop("iconUrl", None); app.pop("iconSha256", None)
     changed = batch.publish(apps, output)
+    if source_state:
+        write_source_state(items, output, source_state, getattr(api, "folder_id", FOLDER_ID))
     print(f"Google Drive catalog {'updated' if changed else 'unchanged'}: {len(apps)} entries from {len(items)} APKs")
     return apps
 
@@ -279,9 +305,10 @@ def main():
     parser.add_argument("--cache-dir", type=Path, default=Path(".local/google-drive-apks"))
     parser.add_argument("--sdk")
     parser.add_argument("--keep-project-releases", action="store_true")
+    parser.add_argument("--source-state", type=Path)
     args = parser.parse_args()
     try:
-        sync(PublicDrive(args.folder_id), args.cache_dir, args.output, args.sdk, args.keep_project_releases)
+        sync(PublicDrive(args.folder_id), args.cache_dir, args.output, args.sdk, args.keep_project_releases, args.source_state)
     except (SyncError, OSError, ValueError) as error:
         print("Google Drive synchronization failed: " + str(error), file=sys.stderr)
         return 1
@@ -289,4 +316,5 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

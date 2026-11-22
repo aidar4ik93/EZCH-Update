@@ -1,0 +1,10 @@
+{
+  "name": "ezch-drive-catalog",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "kv_namespaces": [{"binding":"STATE","id":"REPLACE_WITH_YOUR_NAMESPACE"}],
+  "vars": {"DRIVE_FOLDER_ID":"1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB"},
+  "triggers": {"crons":["* * * * *"]},
+  "observability": {"enabled":true}
+}

@@ -12,6 +12,7 @@ class KV{
 function fixture({items=[row()],published='old',runs=[],dispatchStatus=204,sourceStatus=200}={}){
   const calls=[],env={STATE:new KV(),GITHUB_TOKEN:'private-token',ADMIN_TOKEN:'admin-token'};
   async function fetcher(url,options={}){
+    assert.notEqual(options.redirect,'error','Cloudflare supports manual/follow redirects, not error');
     calls.push({url,options});
     if(url.startsWith('https://drive.google.com/'))return new Response(html(items),{status:sourceStatus});
     if(url.startsWith('https://raw.githubusercontent.com/'))return new Response(JSON.stringify({format:1,folderId:FOLDER,fingerprint:published}));

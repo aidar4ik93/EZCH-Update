@@ -62,7 +62,7 @@ async function readBounded(response){
 }
 
 async function request(fetcher,url,options={}){
-  const r=await fetcher(url,{...options,signal:AbortSignal.timeout(15000),redirect:'error'});
+  const r=await fetcher(url,{...options,signal:AbortSignal.timeout(15000),redirect:'manual'});
   if(!r.ok)throw Error(`Upstream HTTP ${r.status}`);
   return r;
 }
@@ -88,7 +88,7 @@ export async function checkOnce(env,{fetcher=fetch,now=Date.now(),force=false,sc
     const files=parseFolder(await readBounded(source),folder),hash=await fingerprint(files);
     state.apkCount=files.length;
     let published=null;
-    const response=await fetcher(`https://raw.githubusercontent.com/${REPO}/main/catalog-source.json?check=${Math.floor(now/60000)}`,{signal:AbortSignal.timeout(15000),redirect:'error'});
+    const response=await fetcher(`https://raw.githubusercontent.com/${REPO}/main/catalog-source.json?check=${Math.floor(now/60000)}`,{signal:AbortSignal.timeout(15000),redirect:'manual'});
     if(response.ok){const data=JSON.parse(await readBounded(response));if(data.format===1&&data.folderId===folder)published=data.fingerprint;}
     else if(response.status!==404)throw Error(`Published snapshot HTTP ${response.status}`);
     if(hash!==state.observedHash){state.observedHash=hash;state.observedAt=now;state.attempts=0;state.lastDispatchAt=0;forcePersist=true;}

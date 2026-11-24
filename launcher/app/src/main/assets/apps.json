@@ -359,19 +359,6 @@
       "iconSha256": "2a13b55e3c6a5863b47244b7405844e6c40b08c5a9ed12f5b23ee2a9f22a0129"
     },
     {
-      "name": "Лайт - Цифровое ТВ",
-      "packageName": "limehd.ru.lite",
-      "versionCode": 634,
-      "versionName": "5.2.1",
-      "signerSha256": "2a2b1af23a6e62a9a96760778a2ab9e13f0241ea80cd267b9c938cfe1b33247a",
-      "apkUrl": "https://drive.usercontent.google.com/download?id=14riQpUcPRdAtdrMXhMRRHkR2b9t0l182&export=download&confirm=t",
-      "apkPath": "/Лайт HD_Tv.apk",
-      "sha256": "22f0020e6eb29336b2b0eb6e42a4b6336674fbb9415732cf455fa39943421a5d",
-      "sizeBytes": 58169254,
-      "iconUrl": "https://raw.githubusercontent.com/aidar4ik93/EZCH-Update/main/catalog-icons/22f0020e6eb29336b2b0eb6e42a4b6336674fbb9415732cf455fa39943421a5d.png",
-      "iconSha256": "1fc80be1b3532f4f9e88a81e53774eb894761605e894a14e07a1687c8b610db1"
-    },
-    {
       "name": "Медиаплеер Виму",
       "packageName": "net.gtvbox.vimuhd",
       "versionCode": 1077,

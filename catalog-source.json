@@ -1,19 +1,13 @@
 {
   "format": 1,
   "folderId": "1lC9hjcz7phWG-fQADjO54aH9Wg2RPrrB",
-  "fingerprint": "ee8fd5548ce4dc9e2176953d8193b077d5b4e41cc333f871bee25ec0bea81f3b",
+  "fingerprint": "a96de2670b3ffed328cf5a2fa09cc001012d2329430a32644faaa5a8e3c7693c",
   "files": [
     [
       "12qH--pu9Bh8_WSRxYwBMKnWrG6tBievL",
       "Televizo 1.9.9.44-d.apk",
       31744753,
       1793583150743
-    ],
-    [
-      "14riQpUcPRdAtdrMXhMRRHkR2b9t0l182",
-      "Лайт HD_Tv.apk",
-      58169254,
-      1795373839507
     ],
     [
       "17d9GiaaBW7tIFBlMCraypee3XFvFVPUE",
@@ -178,6 +172,6 @@
       1794335363992
     ]
   ],
-  "catalogSha256": "51593dec57c678b22417c9a96a3a033b30505573aebbd2a29a682b9a05515a36",
-  "verifiedAt": "2026-11-23T13:08:22.244302+00:00"
+  "catalogSha256": "4531bb6b2f2476f608e580b590babb3e060b9ec53abc25e90f4b283cc0edfe98",
+  "verifiedAt": "2026-11-24T05:48:45.499353+00:00"
 }
